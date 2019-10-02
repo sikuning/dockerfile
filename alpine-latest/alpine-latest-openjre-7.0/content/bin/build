@@ -1,0 +1,38 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Installing Java Home Configurator
+# --------------------------------------------------
+{ \
+  echo '#!/bin/bash'; \
+  echo 'set -e'; \
+  echo; \
+  echo 'dirname "$(dirname "$(readlink -f "$(which javac || which java)")")"'; \
+} > /usr/local/bin/docker-java-home \
+&& chmod 755 /usr/local/bin/docker-java-home
+# --------------------------------------------------
+
+
+# [2] Installing OpenJRE
+# --------------------------------------------------
+apk add --no-cache --update \
+  openjdk7-jre \
+&& [ "$JAVA_HOME" = "$(docker-java-home)" ]
+# --------------------------------------------------
+
+
+# [3] Installing JCE Policy
+# --------------------------------------------------
+wget -q -O /tmp/UnlimitedJCEPolicyJDK7.zip --header "Cookie: oraclelicense=accept-securebackup-cookie;" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip \
+&& unzip /tmp/UnlimitedJCEPolicyJDK7.zip -d /tmp \
+&& cp -R /tmp/UnlimitedJCEPolicy/*.jar ${JAVA_HOME}/lib/security/ \
+&& rm -rf /tmp/*
+# --------------------------------------------------
+
+
+exit

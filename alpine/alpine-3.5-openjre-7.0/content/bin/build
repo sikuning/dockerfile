@@ -1,0 +1,45 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Installing Java Home Configurator
+# --------------------------------------------------
+{ \
+  echo '#!/bin/bash'; \
+  echo 'set -e'; \
+  echo; \
+  echo 'dirname "$(dirname "$(readlink -f "$(which javac || which java)")")"'; \
+} > /usr/local/bin/docker-java-home \
+&& chmod 755 /usr/local/bin/docker-java-home
+# --------------------------------------------------
+
+
+# [2] Installing OpenJRE
+# --------------------------------------------------
+mv /etc/apk/repositories /etc/apk/repositories.original \
+&& echo 'http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories \
+&& echo 'http://dl-cdn.alpinelinux.org/alpine/v3.6/community' >> /etc/apk/repositories \
+&& apk update \
+&& apk add \
+    openjdk7-jre \
+&& rm -rf /var/cache/apk/* \
+&& rm -f /etc/apk/repositories \
+&& mv /etc/apk/repositories.original /etc/apk/repositories \
+&& [ "$JAVA_HOME" = "$(docker-java-home)" ]
+# --------------------------------------------------
+
+
+# [3] Installing JCE Policy
+# --------------------------------------------------
+curl --silent --location --retry 3 --header "Cookie: oraclelicense=accept-securebackup-cookie;" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip -o /tmp/UnlimitedJCEPolicyJDK7.zip \
+&& unzip /tmp/UnlimitedJCEPolicyJDK7.zip -d /tmp \
+&& cp -R /tmp/UnlimitedJCEPolicy/*.jar ${JAVA_HOME}/lib/security/ \
+&& rm -rf /tmp/*
+# --------------------------------------------------
+
+
+exit

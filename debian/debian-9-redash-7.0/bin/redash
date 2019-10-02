@@ -1,0 +1,142 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Run Redash Server
+server() {
+  exec /usr/local/bin/gunicorn -b 0.0.0.0:5000 --name redash -w${REDASH_WEB_WORKERS:-4} redash.wsgi:app
+}
+
+
+# Run Redash Scheduler
+scheduler() {
+  WORKERS_COUNT=${WORKERS_COUNT:-1}
+  QUEUES=${QUEUES:-celery}
+  SCHEDULE_DB=${SCHEDULE_DB:-celerybeat-schedule}
+
+  echo "Starting scheduler and $WORKERS_COUNT workers for queues: $QUEUES..."
+
+  exec /usr/local/bin/celery worker --app=redash.worker --beat -s$SCHEDULE_DB -c$WORKERS_COUNT -Q$QUEUES -linfo --maxtasksperchild=10 -Ofair
+}
+
+
+# Run Redash Worker
+worker() {
+  WORKERS_COUNT=${WORKERS_COUNT:-2}
+  QUEUES=${QUEUES:-queries,scheduled_queries,celery,schemas}
+
+  echo "Starting $WORKERS_COUNT workers for queues: $QUEUES..."
+  exec /usr/local/bin/celery worker --app=redash.worker -c$WORKERS_COUNT -Q$QUEUES -linfo --maxtasksperchild=10 -Ofair
+}
+
+
+# Run Redash to Create or Migrate Database
+create_db() {
+  exec /opt/redash/manage.py database create_tables
+}
+
+
+# Run Redash Celery Health Check
+celery_healthcheck() {
+  exec /usr/local/bin/celery inspect ping --app=redash.worker -d celery@$HOSTNAME
+}
+
+
+# Show Redash Help
+help() {
+  echo "Redash Docker."
+  echo ""
+  echo "Usage:"
+  echo ""
+
+  echo "server -- start Redash server (with gunicorn)"
+  echo "scheduler -- start Celery worker with a beat (scheduler) process"
+  echo "worker -- start Celery worker"
+  echo "celery_healthcheck -- runs a Celery healthcheck. Useful for Docker's HEALTHCHECK mechanism."
+  echo ""
+  echo "shell -- open shell"
+  echo "dev_server -- start Flask development server with debugger and auto reload"
+  echo "debug -- start Flask development server with remote debugger via ptvsd"
+  echo "create_db -- create database tables"
+  echo "manage -- CLI to manage redash"
+  echo "tests -- run tests"
+}
+
+
+# Run Redash Database Test
+tests() {
+  REDASH_DATABASE_URL=${REDASH_DATABASE_URL:-"postgresql://postgres@postgres/tests"}
+
+  if [ $# -eq 0 ]; then
+    TEST_ARGS=tests/
+  else
+    TEST_ARGS=$@
+  fi
+
+  exec pytest $TEST_ARGS
+}
+
+
+# Execute Everything from Entries
+case "$1" in
+  worker)
+    shift
+
+    sleep 20
+    worker
+    ;;
+  server)
+    shift
+
+    sleep 20
+    server
+    ;;
+  scheduler)
+    shift
+
+    sleep 20
+    scheduler
+    ;;
+  dev_server)
+    export FLASK_DEBUG=1
+
+    sleep 20
+    exec /opt/redash/manage.py runserver --debugger --reload -h 0.0.0.0
+    ;;
+  debug)
+    export FLASK_DEBUG=1
+    export REMOTE_DEBUG=1
+
+    sleep 20
+    exec /opt/redash/manage.py runserver --debugger --no-reload -h 0.0.0.0
+    ;;
+  shell)
+    exec /opt/redash/manage.py shell
+    ;;
+  create_db)
+    sleep 10
+    create_db
+    ;;
+  manage)
+    shift
+    exec /opt/redash/manage.py $*
+    ;;
+  tests)
+    shift
+    tests $@
+    ;;
+  help)
+    shift
+    help
+    ;;
+  *)
+    exec "$@"
+    ;;
+esac

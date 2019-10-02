@@ -1,0 +1,69 @@
+#!/bin/bash -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare etc directory due to volume
+if [ ! -d /var/www/data/etc ]; then
+  mkdir -p /var/www/data/etc \
+  && chown user:root /var/www/data/etc \
+  && chmod 775 /var/www/data/etc \
+  && cp -R /usr/local/docker/etc/* /var/www/data/etc/
+fi
+
+
+# Prepare etc/tomcat directory due to volume
+if [ ! -d /var/www/data/etc/tomcat ]; then
+  mkdir -p /var/www/data/etc/tomcat \
+  && chown user:root /var/www/data/etc/tomcat \
+  && chmod 775 /var/www/data/etc/tomcat \
+  && cp -R /usr/local/docker/etc/tomcat/* /var/www/data/etc/tomcat/
+fi
+
+
+# Prepare lib/tomcat directory due to volume
+if [ ! -d /var/www/data/lib/tomcat ]; then
+  mkdir -p /var/www/data/lib/tomcat \
+  && chown user:root /var/www/data/lib/tomcat \
+  && chmod 775 /var/www/data/lib/tomcat \
+  && cp -R /usr/local/docker/lib/tomcat/* /var/www/data/lib/tomcat/
+fi
+
+
+# Prepare logs directory due to volume
+if [ ! -d /var/www/data/logs ]; then
+  mkdir -p /var/www/data/logs \
+  && chown user:root /var/www/data/logs \
+  && chmod 775 /var/www/data/logs
+fi
+
+
+# Prepare logs/tomcat directory due to volume
+if [ ! -d /var/www/data/logs/tomcat ]; then
+  mkdir -p /var/www/data/logs/tomcat \
+  && chown user:root /var/www/data/logs/tomcat \
+  && chmod 775 /var/www/data/logs/tomcat
+fi
+
+
+# Prepare web directory due to volume
+if [ ! -d /var/www/data/web ]; then
+  mkdir -p /var/www/data/web \
+  && chown user:root /var/www/data/web \
+  && chmod 775 /var/www/data/web
+fi
+if [ "$(ls -A /var/www/data/web)" ]; then
+  :
+else
+  cp -R /usr/local/docker/web/* /var/www/data/web
+fi
+
+
+# Execute Everything from Entries
+exec "$@"

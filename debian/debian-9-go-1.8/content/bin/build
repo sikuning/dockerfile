@@ -1,0 +1,79 @@
+#!/bin/bash
+
+set -e
+
+echo "--------------------------------------------------"
+echo "Dockerfile Build Tools"
+echo "Email: dimas.restu@student.upi.edu"
+echo "--------------------------------------------------"
+
+echo ""
+echo "[1] Run Some Housekeeping"
+echo "--------------------------------------------------"
+mkdir -p /usr/src/go/bin \
+  && mkdir -p /usr/src/go/pkg \
+  && mkdir -p /usr/src/go/src \
+  && chown -R root:root /var/run \
+  && chown -R root:root /usr/src/go/bin \
+  && chown -R root:root /usr/src/go/pkg \
+  && chown -R root:root /usr/src/go/src \
+  && chmod 775 /var/run \
+  && chmod 775 /usr/src/go/bin \
+  && chmod 775 /usr/src/go/pkg \
+  && chmod 775 /usr/src/go/src
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[2] Installing SCM"
+echo "--------------------------------------------------"
+apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      git \
+  && apt-get -y -o Acquire::Check-Valid-Until=false autoremove \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[3] Installing Go CGO Dependencies"
+echo "--------------------------------------------------"
+apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      gcc \
+      g++ \
+      make \
+      pkg-config \
+      libc6-dev \
+  && apt-get -y -o Acquire::Check-Valid-Until=false autoremove \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[4] Installing Go"
+echo "--------------------------------------------------"
+wget -O /tmp/go.tar.gz https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz \
+  && tar xvfz /tmp/go.tar.gz -C /usr/local \
+  && rm -f /tmp/go.tar.gz
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[5] Installing Go-Wrapper"
+echo "--------------------------------------------------"
+mv /usr/local/docker/bin/go-wrapper /usr/local/bin/go-wrapper \
+  && chmod 755 /usr/local/bin/go-wrapper
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[6] Installing GoDep"
+echo "--------------------------------------------------"
+go get -u github.com/golang/dep/cmd/dep \
+  && rm -rf /usr/src/go/pkg/* \
+  && rm -rf /usr/src/go/src/*
+echo "--------------------------------------------------"
+
+
+exit 0

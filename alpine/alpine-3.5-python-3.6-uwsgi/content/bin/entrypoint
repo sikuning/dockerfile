@@ -1,0 +1,117 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Generate uWSGI Configuration
+UWSGI_INI=${UWSGI_INI:-/etc/uwsgi/python.ini}
+UWSGI_SHOW_CONFIG=${UWSGI_SHOW_CONFIG:-false}
+
+UWSGI_APP_DIR=${UWSGI_APP_DIR:-/usr/src/app}
+UWSGI_APP_SCRIPT=${UWSGI_APP_SCRIPT:-main.py}
+UWSGI_APP_MODULE=${UWSGI_APP_MODULE:-}
+UWSGI_APP_CALLABLE=${UWSGI_APP_CALLABLE:-}
+
+UWSGI_SERVE_FLASK=${UWSGI_SERVE_FLASK:-false}
+
+UWSGI_SERVE_STATIC=${UWSGI_SERVE_STATIC:-false}
+UWSGI_SERVE_STATIC_INDEX=${UWSGI_SERVE_STATIC_INDEX:-false}
+UWSGI_SERVE_STATIC_PATH=${UWSGI_SERVE_STATIC_URL:-/usr/src/app/static}
+UWSGI_SERVE_STATIC_URL=${UWSGI_SERVE_STATIC_URL:-/static}
+
+if [ $UWSGI_SERVE_FLASK == "true" ]; then
+  UWSGI_APP_MODULE="main"
+  UWSGI_APP_CALLABLE="app"
+fi
+
+if [ ! -f $UWSGI_INI ]; then
+  export UWSGI_INI=/etc/uwsgi/python.ini
+
+  if [ ! -d $UWSGI_APP_DIR ]; then
+    UWSGI_APP_DIR=/usr/src/app
+  fi
+
+  if [ ! -f ${UWSGI_APP_DIR}/${UWSGI_APP_SCRIPT} ]; then
+    UWSGI_APP_SCRIPT=main.py
+  fi
+
+  { \
+    echo "[uwsgi]"; \
+    echo "chdir = ${UWSGI_APP_DIR}"; \
+    echo "wsgi-file = ${UWSGI_APP_DIR}/${UWSGI_APP_SCRIPT}"; \
+    if [ ! -z $UWSGI_APP_MODULE ]; \
+    then
+      echo "module = ${UWSGI_APP_MODULE}"; \
+    fi; \
+    if [ ! -z $UWSGI_APP_CALLABLE ]; \
+    then
+      echo "callable = ${UWSGI_APP_CALLABLE}"; \
+    fi; \
+    echo "show-config = ${UWSGI_SHOW_CONFIG}"; \
+  } > $UWSGI_INI
+fi
+
+
+# Generate Nginx Configuration
+NGINX_KEEPAALIVE_TIMEOUT=${NGINX_KEEPAALIVE_TIMEOUT:-65}
+NGINX_TYPE_HASH_MAX_SIZE=${NGINX_TYPE_HASH_MAX_SIZE:-2048}
+NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-25m}
+
+NGINX_UWSGI_CONF_PATH=${NGINX_UWSGI_CONF_PATH:-/etc/nginx/conf.d/uwsgi.conf}
+if [ ! -f $NGINX_UWSGI_CONF_PATH ]; then
+  export NGINX_UWSGI_CONF_PATH=/etc/nginx/conf.d/uwsgi.conf
+
+  { \
+    echo "server {"; \
+    echo "  server_name _;"; \
+    echo ""; \
+    echo "  listen                8080 default_server;"; \
+    echo "  keepalive_timeout     ${NGINX_KEEPAALIVE_TIMEOUT};"; \
+    echo "  types_hash_max_size   ${NGINX_TYPE_HASH_MAX_SIZE};"; \
+    echo "  client_max_body_size  ${NGINX_CLIENT_MAX_BODY_SIZE};"; \
+    echo "  charset               utf-8;"; \
+    echo ""; \
+    echo "  location / {"; \
+    echo '    try_files $uri @app;'; \
+    echo "  }"; \
+    echo ""; \
+    if [ $UWSGI_SERVE_STATIC_INDEX == "true" ]; \
+    then
+      echo "  location = / {"; \
+      echo "    index ${UWSGI_SERVER_STATIC_URL}/index.html;"; \
+      echo "  }"; \
+      echo ""; \
+    fi; \
+    echo "  location @app {"; \
+    echo "    include uwsgi_params;"; \
+    echo "    uwsgi_pass unix:///var/run/uwsgi.sock;"; \
+    echo "  }"; \
+    echo ""; \
+    if [ $UWSGI_SERVE_STATIC == "true" ]; \
+    then
+      echo "  location ${UWSGI_SERVE_STATIC_URL} {"; \
+      echo "    alias ${UWSGI_SERVE_STATIC_PATH};"; \
+      echo "  }"; \
+      echo ""; \
+    fi; \
+    echo "}"; \
+  } > $NGINX_UWSGI_CONF_PATH
+fi
+
+
+# Add Custom Pre-Start Script
+PRE_START_SCRIPT_PATH=${PRE_START_SCRIPT_PATH:-/usr/src/app/prestart.sh}
+if [ -f $PRE_START_SCRIPT_PATH ] ; then
+    echo "Running Script $PRE_START_SCRIPT_PATH"
+    . $PRE_START_SCRIPT_PATH
+fi
+
+
+# Execute Everything from Entries
+exec "$@"

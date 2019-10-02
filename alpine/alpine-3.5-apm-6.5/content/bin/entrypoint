@@ -1,0 +1,46 @@
+#!/bin/bash -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Create APM Server Configuration
+cp ${APM_HOME}/apm-server.yml.example ${APM_HOME}/apm-server.yml
+
+
+# Export APM Server Command
+if [ "${1:0:1}" = '-' ]; then
+	set -- apm-server "$@"
+fi
+
+
+# Configure APM Server Variable
+ES_HOST=${ES_HOST:-"localhost"}
+ES_PORT=${ES_PORT:-"9200"}
+
+
+# Configure APM Server Arguments
+APM_ARGS="-e -E apm-server.host=0.0.0.0:8200 -E output.elasticsearch.hosts=${ES_HOST}:${ES_PORT}"
+
+if [[ -n $APM_ARGS_OPTS ]]; then
+  for APM_ARGS_OPTS_DATA in `echo $APM_ARGS_OPTS`
+  do
+    APM_ARGS+="${APM_ARGS} ${APM_ARGS_OPTS_DATA}"
+  done
+  unset APM_ARGS_OPTS
+fi
+
+export APM_ARGS=${APM_ARGS}
+
+
+# Execute Everything from Entries
+if [ "$(id -u)" != "0" ]; then
+  exec "$@"
+else
+  su-exec user "$@"
+fi

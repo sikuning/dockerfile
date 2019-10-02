@@ -1,0 +1,47 @@
+#!/bin/bash
+
+
+# Auto Craete Kafka Topics
+KAFKA_TOPICS_WAIT_COUNT=${KAFKA_TOPICS_WAIT_COUNT:-0}
+KAFKA_TOPICS_WAIT_SLEEP=${KAFKA_TOPICS_WAIT_SLEEP:-5}
+KAFKA_TOPICS_WAIT_TIMEOUT=${KAFKA_TOPICS_WAIT_TIMEOUT:-600}
+KAFKA_TOPICS_TIMEOUT=0
+
+echo "Connecting to Kafka Server"
+while ! nc -z 127.0.0.1 ${KAFKA_CONF_PORT}
+do
+  echo "Trying to Connect to Kafka Server at 127.0.0.1:${KAFKA_CONF_PORT}..."
+  sleep $KAFKA_TOPICS_WAIT_SLEEP
+
+  KAFKA_TOPICS_WAIT_COUNT=$(($KAFKA_TOPICS_WAIT_COUNT+$KAFKA_TOPICS_WAIT_SLEEP))
+  if [ $KAFKA_TOPICS_WAIT_COUNT -gt $KAFKA_TOPICS_WAIT_TIMEOUT ]; then
+    KAFKA_TOPICS_TIMEOUT=1
+    break
+  fi
+done
+
+if [[ $KAFKA_TOPICS_TIMEOUT == 1 ]]; then
+  echo "Connection Timeout to Kafka Server"
+  echo "Can't Automate Kafka Topics Creation!"
+
+  exit 1
+else
+  echo "Kafka Server Connected Successfully"
+  echo "Creating Kafka Topics"
+  if [[ -n $KAFKA_TOPICS ]]; then
+    IFS=','; for KAFKA_TOPICS_DATA in $KAFKA_TOPICS; do
+      echo "- Creating Topic: ${KAFKA_TOPICS_DATA}"
+      
+      IFS=':' read -a KAFKA_TOPICS_CONFIG <<< "${KAFKA_TOPICS_DATA}"
+      JMX_PORT='' kafka-topics.sh --create --zookeeper ${KAFKA_CONF_ZOOKEEPER_CONNECT} --replication-factor ${KAFKA_TOPICS_CONFIG[2]} --partitions ${KAFKA_TOPICS_CONFIG[1]} --topic "${KAFKA_TOPICS_CONFIG[0]}"
+    done
+  fi
+fi
+
+
+# Cleaning-up Variables
+unset KAFKA_TOPICS KAFKA_TOPICS_DATA KAFKA_TOPICS_CONFIG
+unset KAFKA_TOPICS_WAIT_COUNT KAFKA_TOPICS_WAIT_SLEEP KAFKA_TOPICS_WAIT_TIMEOUT KAFKA_TOPICS_TIMEOUT
+
+
+exit 0

@@ -1,0 +1,95 @@
+#!/bin/sh -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /etc/redis \
+&& mkdir -p /var/lib \
+&& mkdir -p /var/lib/redis \
+&& mkdir -p /var/lib/redis/data \
+&& chown -R root:root /var/run \
+&& chown -R root:root /etc/redis \
+&& chown -R root:root /var/lib \
+&& chown -R root:root /var/lib/redis \
+&& chown -R root:root /var/lib/redis/data \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chmod 775 /var/run \
+&& chmod 775 /etc/redis \
+&& chmod 775 /var/lib \
+&& chmod 775 /var/lib/redis \
+&& chmod 775 /var/lib/redis/data \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint
+# --------------------------------------------------
+
+
+# [2] Installing Build Dependencies
+# --------------------------------------------------
+apk add --no-cache --update --virtual .build-deps \
+  coreutils \
+  build-base \
+  linux-headers
+# --------------------------------------------------
+
+
+# [3] Installing Redis
+# --------------------------------------------------
+mkdir -p /usr/src/redis \
+&& cd /usr/src/redis \
+&& wget -O /tmp/redis.tar.gz http://download.redis.io/releases/redis-${REDIS_VERSION}.tar.gz \
+&& tar xzvf /tmp/redis.tar.gz -C /usr/src/redis --strip-components=1 \
+&& rm -f /tmp/redis.tar.gz \
+&& grep -q '^#define CONFIG_DEFAULT_PROTECTED_MODE 1$' /usr/src/redis/src/server.h \
+&& sed -ri 's!^(#define CONFIG_DEFAULT_PROTECTED_MODE) 1$!\1 0!' /usr/src/redis/src/server.h \
+&& grep -q '^#define CONFIG_DEFAULT_PROTECTED_MODE 0$' /usr/src/redis/src/server.h \
+&& make -C /usr/src/redis -j "$(nproc)" \
+&& make -C /usr/src/redis install \
+&& cp redis.conf /etc/redis/ \
+&& cp sentinel.conf /etc/redis/ \
+&& export redisServerMD5="$(md5sum /usr/local/bin/redis-server | cut -d' ' -f1)" \
+&& find /usr/local/bin/redis* -maxdepth 0 \
+		-type f -not -name redis-server \
+		-exec sh -eux -c ' \
+			md5="$(md5sum "$1" | cut -d" " -f1)"; \
+			test "$md5" = "$serverMd5"; \
+		' -- '{}' ';' \
+		-exec ln -svfT 'redis-server' '{}' ';' \
+&& rm -r /usr/src/redis \
+&& redis-cli --version \
+&& redis-server --version
+# --------------------------------------------------
+
+
+# [4] Installing Redis Dependencies
+# --------------------------------------------------
+runDepsRedis="$( \
+  scanelf --needed --nobanner --format '%n#p' --recursive /usr/local \
+    | tr ',' '\n' \
+    | sort -u \
+    | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+  )" \
+&& apk add --no-cache --update --virtual .redis-rundeps \
+    $runDepsRedis \
+&& apk del .build-deps
+# --------------------------------------------------
+
+
+# [5] Configuring Redis
+# --------------------------------------------------
+chown root:root /etc/redis/redis.conf \
+&& chown root:root /etc/redis/sentinel.conf \
+&& chmod 664 /etc/redis/redis.conf \
+&& chmod 664 /etc/redis/sentinel.conf \
+&& ln -sf /etc/redis/redis.conf /etc/redis.conf
+# --------------------------------------------------
+
+
+exit 0

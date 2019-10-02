@@ -1,0 +1,40 @@
+version: '2'
+
+volumes:
+  mongodb_data: {}
+
+networks:
+  restnet:
+    driver: bridge
+
+services:
+  restheart:
+    image: 'dimaskiddo/alpine:restheart-3.5.0'
+    networks:
+      - restnet
+    ports:
+      - 8080:8080
+    environment:
+      - MONGODB_USER=restheart
+      - MONGODB_PASSWORD=restheart
+      - MONGODB_DATABASE=restheart
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+    depends_on:
+      - mongodb
+    restart: always
+  
+  mongodb:
+    image: 'dimaskiddo/alpine:mongodb-3.6'
+    networks:
+      - restnet
+    ports:
+      - 27017:27017      
+    environment:
+      - MONGODB_USER=restheart
+      - MONGODB_PASSWORD=restheart
+      - MONGODB_ADMIN_PASSWORD=admin
+      - MONGODB_DATABASE=restheart
+    volumes:
+      - mongodb_data:/var/lib/mongodb/data
+    restart: always

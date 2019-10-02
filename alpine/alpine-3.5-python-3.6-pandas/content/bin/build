@@ -1,0 +1,29 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Installing Pandas Dependencies
+# --------------------------------------------------
+apk add --no-cache --update --virtual .build-deps \
+  build-base
+# --------------------------------------------------
+
+
+# [2] Compiling and Installing Pandas
+# --------------------------------------------------
+pip install --no-cache-dir --upgrade pip \
+&& pip install --no-cache-dir pandas==$PANDAS_VERSION
+# --------------------------------------------------
+
+
+# [3] Removing Pandas Dependencies
+# --------------------------------------------------
+apk del .build-deps
+# --------------------------------------------------
+
+
+exit 0

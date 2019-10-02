@@ -1,0 +1,75 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare var/lib directory due to volume
+if [ ! -d /var/lib ]; then
+  mkdir -p /var/lib \
+  && chown user:root /var/lib \
+  && chmod 775 /var/lib
+fi
+
+
+# Prepare var/lib/redis directory due to volume
+if [ ! -d /var/lib/redis ]; then
+  mkdir -p /var/lib/redis \
+  && chown user:root /var/lib/redis \
+  && chmod 775 /var/lib/redis
+fi
+
+
+# Prepare var/lib/redis/data directory due to volume
+if [ ! -d /var/lib/redis/data ]; then
+  mkdir -p /var/lib/redis/data \
+  && chown user:root /var/lib/redis/data \
+  && chmod 775 /var/lib/redis/data
+fi
+
+
+# Prepare Redis configuration
+IS_NUMBER='^[0-9]+$'
+IS_PASSWORD='^[a-zA-Z0-9_~!@#$%^&*()-=<>,.?;:|]+$'
+# ------------------------------------------------
+# Redis variable configuration
+REDIS_PASSWORD=${REDIS_PASSWORD:-}
+REDIS_DEFAULTS_FILE=${REDIS_DEFAULTS_FILE:-}
+# ------------------------------------------------
+# Write Redis variable to configuration file
+if [[ -z $REDIS_DEFAULTS_FILE && ! -f $REDIS_DEFAULTS_FILE ]]; then
+  sed -e "s/^bind/#bind/" \
+      -e "s/^logfile/#logfile/" \
+      -e "s/^dir /#dir /" \
+      -e "/^protected-mode/s/yes/no/" \
+      -i /etc/redis/redis.conf
+  sed -e "s%^#bind.*%bind 0.0.0.0%" \
+      -e "s%^#dir .*%dir /var/lib/redis/data%" \
+      -i /etc/redis/redis.conf
+
+  if ! [[ -z $REDIS_PASSWORD ]]; then
+    if ! [[ $REDIS_PASSWORD =~ $IS_PASSWORD ]]; then
+      echo "Failed to configure REDIS_PASSWORD variable. Redis will using no authentication password"
+    else
+      sed -e "s/^# requirepass .*/requirepass ${REDIS_PASSWORD}/" \
+          -i /etc/redis/redis.conf
+    fi
+  else
+    echo "Redis will using no authentication password"
+  fi
+else
+  rm -rf /etc/redis/*
+  cp $REDIS_DEFAULTS_FILE /etc/redis/redis.conf
+fi
+# ------------------------------------------------
+# Cleaning-up configuration variable
+unset REDIS_PASSWORD REDIS_DEFAULTS_FILE
+
+
+# Execute Everything from Entries
+exec "$@"

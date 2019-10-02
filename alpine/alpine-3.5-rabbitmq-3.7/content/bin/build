@@ -1,0 +1,76 @@
+#!/bin/sh -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /etc/rabbitmq \
+&& mkdir -p /opt/rabbitmq \
+&& mkdir -p /var/lib/rabbitmq \
+&& mkdir -p /var/log/rabbitmq \
+&& mkdir -p /tmp/rabbitmq-ssl \
+&& chown -R root:root /var/run \
+&& chown -R root:root /etc/rabbitmq \
+&& chown -R root:root /opt/rabbitmq \
+&& chown -R root:root /var/lib/rabbitmq \
+&& chown -R root:root /var/log/rabbitmq \
+&& chown -R root:root /tmp/rabbitmq-ssl \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chmod 775 /var/run \
+&& chmod 775 /etc/rabbitmq \
+&& chmod 775 /opt/rabbitmq \
+&& chmod 775 /var/lib/rabbitmq \
+&& chmod 775 /var/log/rabbitmq \
+&& chmod 775 /tmp/rabbitmq-ssl \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint
+# --------------------------------------------------
+
+
+# [2] Installing SU-EXEC and GNUPG
+# --------------------------------------------------
+apk add --update --no-cache \
+  su-exec \
+  gnupg \
+  xz
+# --------------------------------------------------
+
+
+# [3] Installing RabbitMQ
+# --------------------------------------------------
+cd ${RABBITMQ_HOME} \
+&& wget -O rabbitmq.tar.xz.asc https://github.com/rabbitmq/rabbitmq-server/releases/download/v${RABBITMQ_VERSION}/rabbitmq-server-generic-unix-latest-toolchain-${RABBITMQ_VERSION}.tar.xz.asc \
+&& wget -O rabbitmq.tar.xz https://github.com/rabbitmq/rabbitmq-server/releases/download/v${RABBITMQ_VERSION}/rabbitmq-server-generic-unix-latest-toolchain-${RABBITMQ_VERSION}.tar.xz \
+&& export GNUPGHOME="$(mktemp -d)" \
+&& gpg --keyserver keyserver.ubuntu.com --recv-keys "${RABBITMQ_GPG_KEY}" \
+&& gpg --batch --verify rabbitmq.tar.xz.asc rabbitmq.tar.xz \
+&& tar xvfJ rabbitmq.tar.xz --strip-components 1 \
+&& rm -f rabbitmq.tar.xz* \
+&& chown -R root:root ${RABBITMQ_HOME} \
+&& chmod -R 775 ${RABBITMQ_HOME}
+# --------------------------------------------------
+
+
+# [4] Configuring RabbitMQ
+# --------------------------------------------------
+grep -qE '^SYS_PREFIX=\$\{RABBITMQ_HOME\}$' "$RABBITMQ_HOME/sbin/rabbitmq-defaults" \
+&& sed -i 's/^SYS_PREFIX=.*$/SYS_PREFIX=/' "$RABBITMQ_HOME/sbin/rabbitmq-defaults" \
+&& grep -qE '^SYS_PREFIX=$' "$RABBITMQ_HOME/sbin/rabbitmq-defaults" \
+&& [ ! -e ${RABBITMQ_DATA_DIR}/.erlang.cookie ] \
+&& su-exec user rabbitmqctl list_ciphers \
+&& su-exec user rabbitmq-plugins list \
+&& rm -f ${RABBITMQ_DATA_DIR}/.erlang.cookie ${HOME}/.erlang.cookie \
+&& ln -sf ${RABBITMQ_DATA_DIR}/.erlang.cookie ${HOME}/.erlang.cookie \
+&& ln -sf ${RABBITMQ_DATA_DIR}/.erlang.cookie /.erlang.cookie \
+&& ln -sf ${RABBITMQ_HOME}/plugins /plugins
+# --------------------------------------------------
+
+
+exit 0

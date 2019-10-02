@@ -1,0 +1,80 @@
+:root {
+  --blue: #1E88E5;
+  --dark-blue: #3F51B5;
+}
+
+header {
+  background-color: #3F51B5;
+}
+
+header #dropdown .material-icons {
+  color: #FFF;
+}
+
+#login {
+  background-color: #FAFAFA;
+}
+
+#login form {
+  max-width: 20em;
+}
+
+#login form .button {
+  background: var(--blue);
+  color: #FFF;
+}
+
+#login form .button:hover {
+  background: var(--dark-blue);
+  color: #FFF;
+}
+
+.button {
+  border: 0px;
+  border-radius: 0px;
+  box-shadow: #FFF 0px 0px 0px;
+  background: #FEFEFE;
+  color: #6F6F6F;
+}
+
+.button:hover {
+  background: var(--moon-grey);
+  color: #6F6F6F;
+}
+
+.button--flat {
+  background: var(--blue);
+  color: #FFF;
+}
+
+.button--flat:hover {
+  background: var(--dark-blue);
+  color: #FFF;
+}
+
+.button--red {
+  background: var(--red) !important;
+  color: #FFF !important;
+}
+
+.button--red:hover {
+  background: var(--dark-red) !important;
+  color: #FFF !important;
+}
+
+.button--grey {
+  background: #FEFEFE !important;
+  color: #6F6F6F !important;
+}
+
+.button--grey:hover {
+  background: var(--moon-grey) !important;
+  color: #6F6F6F !important;
+}
+
+select,
+.dashboard input[type=password],
+.dashboard input[type=text],
+.dashboard select {
+  padding: 8px;
+}

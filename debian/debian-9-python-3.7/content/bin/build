@@ -1,0 +1,155 @@
+#!/bin/bash
+
+set -e
+
+echo "--------------------------------------------------"
+echo "Dockerfile Build Tools"
+echo "Email: dimas.restu@student.upi.edu"
+echo "--------------------------------------------------"
+
+echo ""
+echo "[1] Run Some Housekeeping"
+echo "--------------------------------------------------"
+mkdir -p /usr/src/app \
+  && chown -R root:root /var/run \
+  && chown -R root:root /usr/src/app \
+  && chmod 775 /var/run \
+  && chmod 775 /usr/src/app
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[2] Installing Python Dependencies"
+echo "--------------------------------------------------"
+apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      netbase \
+  && apt-get -y -o Acquire::Check-Valid-Until=false autoremove \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean \
+  && savedAptMark="$(apt-mark showmanual)" \
+  && apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      gcc \
+      make \
+      dpkg-dev \
+      libbz2-dev \
+      libc6-dev \
+      libexpat1-dev \
+      libffi-dev \
+      libgdbm-dev \
+      liblzma-dev \
+      libncursesw5-dev \
+      libreadline-dev \
+      libsqlite3-dev \
+      libssl-dev \
+      uuid-dev \
+      tk-dev \
+      zlib1g-dev \
+      xz-utils \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[3] Installing Python"
+echo "--------------------------------------------------"
+$(command -v gpg > /dev/null || echo 'gnupg dirmngr') \
+  && mkdir -p /usr/src/python \
+  && cd /usr/src/python \
+  && wget -O python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-${PYTHON_VERSION}.tar.xz.asc" \
+  && wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-${PYTHON_VERSION}.tar.xz" \
+  && export GNUPGHOME="$(mktemp -d)" \
+  && gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "$PYTHON_GPG_KEY" \
+  && gpg --batch --verify python.tar.xz.asc python.tar.xz \
+  && tar xJvf python.tar.xz -C /usr/src/python --strip-components=1 \
+  && rm -f python.tar.xz* \
+  && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+  && ./configure \
+      --build="$gnuArch" \
+      --enable-loadable-sqlite-extensions \
+      --enable-optimizations \
+      --enable-shared \
+      --with-system-expat \
+      --with-system-ffi \
+      --without-ensurepip \
+  && make -j "$(nproc)" \
+      PROFILE_TASK='-m test.regrtest --pgo \
+        test_array \
+        test_base64 \
+        test_binascii \
+        test_binhex \
+        test_binop \
+        test_bytes \
+        test_c_locale_coercion \
+        test_class \
+        test_cmath \
+        test_codecs \
+        test_compile \
+        test_complex \
+        test_csv \
+        test_decimal \
+        test_dict \
+        test_float \
+        test_fstring \
+        test_hashlib \
+        test_io \
+        test_iter \
+        test_json \
+        test_long \
+        test_math \
+        test_memoryview \
+        test_pickle \
+        test_re \
+        test_set \
+        test_slice \
+        test_struct \
+        test_threading \
+        test_time \
+        test_traceback \
+        test_unicode' \
+  && make install \
+  && ldconfig \
+  && cd \
+  && rm -rf /usr/src/python
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[4] Configuring Python Dependencies"
+echo "--------------------------------------------------"
+apt-mark auto '.*' > /dev/null \
+  && apt-mark manual $savedAptMark > /dev/null \
+  && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
+      | awk '/=>/ { print $(NF-1) }' \
+      | sort -u \
+      | xargs -r dpkg-query --search \
+      | cut -d: -f1 \
+      | sort -u \
+      | xargs -r apt-mark manual \
+  && apt-get -y -o Acquire::Check-Valid-Until=false -o APT::AutoRemove::RecommendsImportant=false -o APT::AutoRemove::SuggestsImportant=false --auto-remove purge \
+  && find /usr/local -depth \
+      \( \
+        \( -type d -a \( -name test -o -name tests \) \) \
+        -o \
+        \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+      \) -exec rm -rf '{}' + \
+  && if [[ ! -e /usr/bin/python ]]; then ln -sf /usr/local/bin/python3.7 /usr/bin/python; fi \
+  && if [[ ! -e /usr/bin/python-config ]]; then ln -sf /usr/local/bin/python3.7-config /usr/bin/python-config; fi \
+  && if [[ ! -e /usr/bin/pydoc ]]; then ln -sf /usr/local/bin/pydoc3.7 /usr/bin/pydoc; fi \
+  && if [[ ! -e /usr/bin/idle ]]; then ln -sf /usr/local/bin/idle3.7 /usr/bin/idle; fi \
+  && if [[ ! -e /usr/bin/easy_install ]]; then ln -sf /usr/local/bin/easy_install-3.7 /usr/bin/easy_install; fi
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[4] Installing Python PIP"
+echo "--------------------------------------------------"
+wget -O get-pip.py https://bootstrap.pypa.io/get-pip.py \
+&& python get-pip.py \
+&& ln -sf /usr/bin/pip2 /usr/bin/pip \
+&& pip install --upgrade pip \
+&& rm -f get-pip.py
+echo "--------------------------------------------------"
+
+
+exit 0

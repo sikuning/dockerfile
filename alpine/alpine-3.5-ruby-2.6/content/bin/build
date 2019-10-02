@@ -1,0 +1,108 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /usr/src/app \
+&& chown -R root:root /var/run \
+&& chown -R root:root /usr/src/app \
+&& chmod 775 /var/run \
+&& chmod 775 /usr/src/app
+# --------------------------------------------------
+
+
+# [2] Installing Ruby Dependencies
+# --------------------------------------------------
+apk add --no-cache --update --virtual .build-deps \
+  bison \
+  coreutils \
+  gcc \
+  make \
+  autoconf \
+  procps \
+  ruby \
+  tar \
+  xz \
+  bzip2 \
+  bzip2-dev \
+  dpkg \
+  dpkg-dev \
+  gdbm-dev \
+  glib-dev \
+  libc-dev \
+  libffi-dev \
+  libxml2-dev \
+  libxslt-dev \
+  linux-headers \
+  ncurses-dev \
+  libressl \
+  libressl-dev \
+  readline-dev \
+  yaml-dev \
+  zlib-dev
+# --------------------------------------------------
+
+
+# [3] Installing Ruby
+# --------------------------------------------------
+mkdir -p /usr/src/ruby \
+&& cd /usr/src/ruby \
+&& wget -O /tmp/ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-${RUBY_VERSION}.tar.xz" \
+&& tar xJvf /tmp/ruby.tar.xz -C /usr/src/ruby --strip-components=1 \
+&& rm -f /tmp/ruby.tar.xz \
+&& wget -O thread-stack-fix.patch https://bugs.ruby-lang.org/attachments/download/7081/0001-thread_pthread.c-make-get_main_stack-portable-on-lin.patch \
+&& patch -p1 -i thread-stack-fix.patch \
+&& rm -f thread-stack-fix.patch \
+&& { \
+		 echo '#define ENABLE_PATH_CHECK 0'; \
+		 echo; \
+		 cat file.c; \
+	 } > file.c.new \
+&& mv file.c.new file.c \
+&& autoconf \
+&& gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+&& export \
+    ac_cv_func_isnan=yes \
+    ac_cv_func_isinf=yes \
+&& ./configure \
+    --build="$gnuArch" \
+		--disable-install-doc \
+		--enable-shared \
+&& make -j "$(nproc)" \
+&& make install \
+&& cd \
+&& rm -rf /usr/src/ruby \
+&& gem install bundler -v $BUNDLE_VERSION
+# --------------------------------------------------
+
+
+# [4] Configuring Ruby Dependencies
+# --------------------------------------------------
+runDepsRuby="$( \
+  scanelf --needed --nobanner --format '%n#p' --recursive /usr/local \
+    | tr ',' '\n' \
+    | sort -u \
+    | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+  )" \
+&& apk add --no-cache --update --virtual .ruby-rundeps \
+    $runDepsRuby \
+		bzip2 \
+    procps \
+		libffi-dev \
+		yaml-dev \
+		zlib-dev \
+&& apk del .build-deps \
+&& mkdir -p $GEM_HOME \
+&& chmod 777 $GEM_HOME \
+&& ruby --version \
+&& gem --version \
+&& bundle --version
+# --------------------------------------------------
+
+
+exit 0

@@ -1,0 +1,173 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare etc directory due to volume
+if [ ! -d /var/www/data/etc ]; then
+  mkdir -p /var/www/data/etc \
+  && chown user:root /var/www/data/etc \
+  && chmod 775 /var/www/data/etc \
+  && cp -R /usr/local/docker/etc/* /var/www/data/etc/
+fi
+
+
+# Prepare cgi-bin directory due to volume
+if [ ! -d /var/www/data/cgi-bin ]; then
+  mkdir -p /var/www/data/cgi-bin \
+  && chown user:root /var/www/data/cgi-bin \
+  && chmod 775 /var/www/data/cgi-bin \
+  && cp -R /usr/local/docker/etc/* /var/www/data/cgi-bin/
+fi
+
+
+# Prepare etc/supervisor directory due to volume
+if [ ! -d /var/www/data/etc/supervisor ]; then
+  mkdir -p /var/www/data/etc/supervisor \
+  && chown user:root /var/www/data/etc/supervisor \
+  && chmod 775 /var/www/data/etc/supervisor \
+  && cp -R /usr/local/docker/etc/supervisor/* /var/www/data/etc/supervisor/
+fi
+if [ ! -d /var/www/data/etc/supervisor/conf.d ]; then
+  mkdir -p /var/www/data/etc/supervisor/conf.d \
+  && chown user:root /var/www/data/etc/supervisor/conf.d \
+  && chmod 775 /var/www/data/etc/supervisor/conf.d \
+  && cp -R /usr/local/docker/etc/supervisor/conf.d/* /var/www/data/etc/supervisor/conf.d/
+fi
+
+
+# Prepare etc/nginx directory due to volume
+if [ ! -d /var/www/data/etc/nginx ]; then
+  mkdir -p /var/www/data/etc/nginx \
+  && chown user:root /var/www/data/etc/nginx \
+  && chmod 775 /var/www/data/etc/nginx \
+  && cp -R /usr/local/docker/etc/nginx/* /var/www/data/etc/nginx/
+fi
+if [ ! -f /var/www/data/etc/nginx/nginx.conf ]; then
+  cp /usr/local/docker/etc/nginx/nginx.conf /var/www/data/etc/nginx/nginx.conf
+fi
+if [ ! -d /var/www/data/etc/nginx/conf.d ]; then
+  mkdir -p /var/www/data/etc/nginx/conf.d \
+  && chown user:root /var/www/data/etc/nginx/conf.d \
+  && chmod 775 /var/www/data/etc/nginx/conf.d
+fi
+
+
+# Prepare logs directory due to volume
+if [ ! -d /var/www/data/logs ]; then
+  mkdir -p /var/www/data/logs \
+  && chown user:root /var/www/data/logs \
+  && chmod 775 /var/www/data/logs
+fi
+
+
+# Prepare logs/supervisor directory due to volume
+if [ ! -d /var/www/data/logs/supervisor ]; then
+  mkdir -p /var/www/data/logs/supervisor \
+  && chown user:root /var/www/data/logs/supervisor \
+  && chmod 775 /var/www/data/logs/supervisor
+fi
+
+
+# Prepare logs/nginx directory due to volume
+if [ ! -d /var/www/data/logs/nginx ]; then
+  mkdir -p /var/www/data/logs/nginx \
+  && chown user:root /var/www/data/logs/nginx \
+  && chmod 757 /var/www/data/logs/nginx
+fi  
+
+
+# Prepare Nginx proxy configuration
+IS_STRING='^[a-zA-Z0-9_]+$'
+IS_PASSWORD='^[a-zA-Z0-9_~!@#$%^&*()-=<>,.?;:|]+$'
+NGINX_PROXY_PASS_URL=${NGINX_PROXY_PASS_URL:-"http://127.0.0.1:8080"}
+# ------------------------------------------------
+# Nginx proxy credentials variable configuration
+NGINX_BASIC_AUTH_ENABLED=${NGINX_BASIC_AUTH_ENABLED:-false}
+NGINX_BASIC_AUTH_USERNAME=${NGINX_BASIC_AUTH_USERNAME:-}
+NGINX_BASIC_AUTH_PASSWORD=${NGINX_BASIC_AUTH_PASSWORD:-}
+NGINX_BASIC_AUTH_REMOVE=${NGINX_BASIC_AUTH_REMOVE:-false}
+# ------------------------------------------------
+# Nginx proxy extra variable configuration
+NGINX_KEEPAALIVE_TIMEOUT=${NGINX_KEEPAALIVE_TIMEOUT:-65}
+NGINX_TYPE_HASH_MAX_SIZE=${NGINX_TYPE_HASH_MAX_SIZE:-2048}
+NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-25m}
+# ------------------------------------------------
+# Validate Nginx proxy credentials variable configuration
+if [[ $NGINX_BASIC_AUTH_ENABLED == "true" ]]; then
+  if [[ ! -z $NGINX_BASIC_AUTH_USERNAME ]]; then
+    if ! [[ $NGINX_BASIC_AUTH_USERNAME =~ $IS_STRING ]]; then
+      echo "Failed to configure NGINX_BASIC_AUTH_USERNAME variable. Fallback to default NGINX_BASIC_AUTH_USERNAME value as admin"
+      NGINX_BASIC_AUTH_USERNAME="admin"
+    fi
+  else
+    echo "Failed to configure NGINX_BASIC_AUTH_USERNAME variable. Fallback to default NGINX_BASIC_AUTH_USERNAME value as admin"
+    NGINX_BASIC_AUTH_USERNAME="admin"
+  fi
+  if [[ ! -z $NGINX_BASIC_AUTH_PASSWORD ]]; then
+    if ! [[ $NGINX_BASIC_AUTH_PASSWORD =~ $IS_PASSWORD ]]; then
+      echo "Failed to configure NGINX_BASIC_AUTH_PASSWORD variable. Fallback to default NGINX_BASIC_AUTH_PASSWORD value as password"
+      NGINX_BASIC_AUTH_PASSWORD="password"
+    fi
+  else
+    echo "Failed to configure NGINX_BASIC_AUTH_PASSWORD variable. Fallback to default NGINX_BASIC_AUTH_PASSWORD value as password"
+    NGINX_BASIC_AUTH_PASSWORD="password"
+  fi
+fi
+# ------------------------------------------------
+# Write Nginx proxy basic auth variable to configuration file
+if [[ $NGINX_BASIC_AUTH_ENABLED == "true" ]]; then
+  htpasswd -b -c /var/www/data/etc/nginx/conf.d/default.htpasswd ${NGINX_BASIC_AUTH_USERNAME} ${NGINX_BASIC_AUTH_PASSWORD}
+fi
+# ------------------------------------------------
+# Write Nginx proxy variable to configuration file
+if [[ ! -f /var/www/data/etc/nginx/conf.d/default.conf ]]; then
+  if [[ -z $NGINX_DEFAULTS_CONF_FILE && ! -f $NGINX_DEFAULTS_CONF_FILE ]]; then
+    { \
+      echo "server {"; \
+      echo "  server_name _;"; \
+      echo ""; \
+      echo "  listen                8080 default_server;"; \
+      echo "  keepalive_timeout     ${NGINX_KEEPAALIVE_TIMEOUT};"; \
+      echo "  types_hash_max_size   ${NGINX_TYPE_HASH_MAX_SIZE};"; \
+      echo "  client_max_body_size  ${NGINX_CLIENT_MAX_BODY_SIZE};"; \
+      echo "  charset               utf-8;"; \
+      echo ""; \
+      echo "  location / {"; \
+      echo "    proxy_pass ${NGINX_PROXY_PASS_URL};"; \
+      echo "    include proxy_params;"; \
+      if [[ $NGINX_BASIC_AUTH_ENABLED == "true" ]]; \
+      then
+        echo ''; \
+        echo '    auth_basic "Authorization Required";'; \
+        echo '    auth_basic_user_file /var/www/data/etc/nginx/conf.d/default.htpasswd;'; \
+        if [[ $NGINX_BASIC_AUTH_REMOVE == "true" ]]; \
+        then
+          echo ''; \
+          echo '    proxy_set_header Authorization "";'; \
+        fi; \
+      fi; \
+      echo "  }"; \
+      echo "}"; \
+    } > /var/www/data/etc/nginx/conf.d/default.conf
+  else
+    rm -f /var/www/data/etc/nginx/conf.d/default.conf
+    cp $NGINX_DEFAULTS_CONF_FILE /var/www/data/etc/nginx/conf.d/default.conf
+  fi
+fi
+# ------------------------------------------------
+# Cleaning-up configuration variable
+unset NGINX_PROXY_PASS_URL
+unset NGINX_BASIC_AUTH_ENABLED NGINX_BASIC_AUTH_USERNAME NGINX_BASIC_AUTH_PASSWORD NGINX_BASIC_AUTH_REMOVE
+unset NGINX_KEEPAALIVE_TIMEOUT NGINX_TYPE_HASH_MAX_SIZE NGINX_CLIENT_MAX_BODY_SIZE
+unset NGINX_DEFAULTS_CONF_FILE
+
+
+# Execute Everything from Entries
+exec "$@"

@@ -1,0 +1,192 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare data directory due to volume
+if [ ! -d /data ]; then
+  mkdir -p /data \
+  && chown user:root /data \
+  && chmod 775 /data
+fi
+
+
+# Prepare data/filebrowser directory due to volume
+if [ ! -d /data/filebrowser ]; then
+  mkdir -p /data/filebrowser \
+  && chown user:root /data/filebrowser \
+  && chmod 775 /data/filebrowser
+fi
+
+# Prepare data/filebrowser/certs directory due to volume
+if [ ! -d /data/filebrowser/certs ]; then
+  mkdir -p /data/filebrowser/certs \
+  && chown user:root /data/filebrowser/certs \
+  && chmod 775 /data/filebrowser/certs
+fi
+
+# Prepare data/filebrowser/data directory due to volume
+if [ ! -d /data/filebrowser/data ]; then
+  mkdir -p /data/filebrowser/data \
+  && chown user:root /data/filebrowser/data \
+  && chmod 775 /data/filebrowser/data
+fi
+
+
+# File Browser variable configuration
+FB_SOCKET=""
+FB_ADDRESS="0.0.0.0"
+FB_PORT="8080"
+FB_LOG=${FB_LOG:-stdout}
+FB_ROOT="/data/filebrowser/data"
+FB_DATABASE="/data/filebrowser/filebrowser.db"
+FB_BASEURL=${FB_BASEURL:-}
+FB_SIGNUP=${FB_SIGNUP:-false}
+FB_CREATE_USER_DIR=${FB_CREATE_USER_DIR:-true}
+FB_LOCALE=${FB_LOCALE:-en}
+FB_VIEW_MODE=${FB_VIEW_MODE:-list}
+FB_SORTING_ASC=${FB_SORTING_ASC:-true}
+FB_SORTING_BY=${FB_SORTING_BY:-name}
+if [[ ! -z $FB_BRANDING_NAME ]]; then
+  FB_BRANDING_NAME="PlayCourt Drive $FB_BRANDING_NAME"
+else
+  FB_BRANDING_NAME="PlayCourt Drive"
+fi
+FB_BRANDING_FILES=/etc/filebrowser/files
+FB_BRANDING_DISABLE_EXTERNAL=true
+FB_RECAPTCHA=${FB_RECAPTCHA:-false}
+FB_RECAPTCHA_HOST=${FB_RECAPTCHA_HOST:-"https://www.google.com"}
+FB_RECAPTCHA_KEY=${FB_RECAPTCHA_KEY:-""}
+FB_RECAPTCHA_SECRET=${FB_RECAPTCHA_SECRET:-""}
+FB_SETTINGS_ENV=${FB_SETTINGS_ENV:-false}
+# ------------------------------------------------
+# File Browser credentials variable configuration
+FB_USERNAME=${FB_USERNAME:-admin}
+FB_PASSWORD=${FB_PASSWORD:-admin}
+# ------------------------------------------------
+# Write File Browser variable to configuration file
+if [[ -z $FB_DEFAULTS_CONF_FILE && ! -f $FB_DEFAULTS_CONF_FILE ]]; then
+  { \
+    echo "address: ${FB_ADDRESS}"; \
+    echo "port: ${FB_PORT}"; \
+    echo ""; \
+    echo "log: ${FB_LOG}"; \
+    echo ""; \
+    echo "root: ${FB_ROOT}"; \
+    echo "database: ${FB_DATABASE}"; \
+    echo ""; \
+    echo "baseurl: ${FB_BASEURL}"; \
+    echo ""; \
+  } > /etc/filebrowser/.filebrowser.yaml
+else
+  rm -f /etc/filebrowser/.filebrowser.yaml
+  cp $FB_DEFAULTS_CONF_FILE /etc/filebrowser/.filebrowser.yaml
+fi
+
+if [[ ! -f /data/filebrowser/filebrowser.db ]]; then
+  filebrowser config init \
+    --socket=${FB_SOCKET} \
+    --address=${FB_ADDRESS} \
+    --port=${FB_PORT} \
+    --log=${FB_LOG} \
+    --root=${FB_ROOT} \
+    --database=${FB_DATABASE} \
+    --baseurl=${FB_BASEURL} \
+    --signup=${FB_SIGNUP} \
+    --locale=${FB_LOCALE} \
+    --viewMode=${FB_VIEW_MODE} \
+    --sorting.asc=${FB_SORTING_ASC} \
+    --sorting.by=${FB_SORTING_BY} \
+    --branding.name="${FB_BRANDING_NAME}" \
+    --branding.files=${FB_BRANDING_FILES} \
+    --branding.disableExternal=${FB_BRANDING_DISABLE_EXTERNAL} \
+    --commands="git,svn" \
+    --perm.admin=false \
+    --perm.execute=false  \
+  > /dev/null
+  
+  filebrowser users add ${FB_USERNAME} ${FB_PASSWORD} \
+    --lockPassword=true \
+    --perm.admin=true  \
+    --perm.execute=true \
+  > /dev/null
+
+  filebrowser config export /tmp/filebrowser-patch_create_user_dir.json > /dev/null
+  sed -i -e "s%\"createUserDir\": .*%\"createUserDir\": ${FB_CREATE_USER_DIR},%" /tmp/filebrowser-patch_create_user_dir.json
+
+  filebrowser config import /tmp/filebrowser-patch_create_user_dir.json > /dev/null
+  rm -f /tmp/filebrowser-patch_create_user_dir.json
+else
+  filebrowser config set \
+    --socket=${FB_SOCKET} \
+    --address=${FB_ADDRESS} \
+    --port=${FB_PORT} \
+    --log=${FB_LOG} \
+    --root=${FB_ROOT} \
+    --database=${FB_DATABASE} \
+    --branding.name="${FB_BRANDING_NAME}" \
+    --branding.files=${FB_BRANDING_FILES} \
+    --branding.disableExternal=${FB_BRANDING_DISABLE_EXTERNAL} \
+    --commands="git,svn" \
+  > /dev/null
+
+  filebrowser config export /tmp/filebrowser-patch_create_user_dir.json > /dev/null
+  sed -i -e "s%\"createUserDir\": .*%\"createUserDir\": ${FB_CREATE_USER_DIR},%" /tmp/filebrowser-patch_create_user_dir.json
+
+  filebrowser config import /tmp/filebrowser-patch_create_user_dir.json > /dev/null
+  rm -f /tmp/filebrowser-patch_create_user_dir.json
+
+  if [[ $FB_SETTINGS_ENV == "true" ]]; then
+    filebrowser config set \
+      --baseurl=${FB_BASEURL} \
+      --signup=${FB_SIGNUP} \
+      --locale=${FB_LOCALE} \
+      --viewMode=${FB_VIEW_MODE} \
+      --sorting.asc=${FB_SORTING_ASC} \
+      --sorting.by=${FB_SORTING_BY} \
+      --perm.admin=false \
+      --perm.execute=false  \
+    > /dev/null
+  fi
+
+  filebrowser users update ${FB_USERNAME} \
+    --password="${FB_PASSWORD}" \
+    --lockPassword=true \
+    --perm.admin=true  \
+    --perm.execute=true \
+  > /dev/null
+fi
+
+if [[ ! -z $FB_CERT && ! -z $FB_KEY ]]; then
+  filebrowser config set \
+    --cert=${FB_CERT} \
+    --key=${FB_KEY}  \
+  > /dev/null
+fi
+
+if [[ $FB_RECAPTCHA == "true" ]]; then
+  filebrowser config set \
+    --recaptcha.host="${FB_RECAPTCHA_HOST}" \
+    --recaptcha.key="${FB_RECAPTCHA_KEY}" \
+    --recaptcha.secret="${FB_RECAPTCHA_SECRET}" \
+  > /dev/null
+fi
+# ------------------------------------------------
+# Cleaning-up configuration variable
+unset FB_SOCKET FB_ADDRESS FB_PORT
+unset FB_LOG FB_ROOT FB_DATABASE
+unset FB_BASEURL FB_SIGNUP FB_CREATE_USER_DIR
+unset FB_LOCALE FB_VIEW_MODE FB_SORTING_ASC FB_SORTING_BY
+unset FB_BRANDING_NAME FB_BRANDING_FILES FB_BRANDING_DISABLE_EXTERNAL
+unset FB_RECAPTCHA FB_RECAPTCHA_HOST FB_RECAPTCHA_KEY FB_RECAPTCHA_SECRET
+unset FB_SETTINGS_ENV
+
+
+# Execute Everything from Entries
+exec "$@"

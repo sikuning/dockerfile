@@ -1,0 +1,81 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p ${GOPATH}/bin \
+&& mkdir -p ${GOPATH}/pkg \
+&& mkdir -p ${GOPATH}/src \
+&& chown -R root:root /var/run \
+&& chown -R root:root ${GOPATH}/bin \
+&& chown -R root:root ${GOPATH}/pkg \
+&& chown -R root:root ${GOPATH}/src \
+&& chmod 775 /var/run \
+&& chmod 775 ${GOPATH}/bin \
+&& chmod 775 ${GOPATH}/pkg \
+&& chmod 775 ${GOPATH}/src
+# --------------------------------------------------
+
+
+# [2] Installing SCM
+# --------------------------------------------------
+apk add --no-cache --update \
+  git
+# --------------------------------------------------
+
+
+# [3] Installing Dependencies for Go CGO
+# --------------------------------------------------
+apk add --no-cache --update \
+  gcc \
+  g++ \
+  make \
+  pkgconfig \
+  musl-dev \
+  libc-dev
+# --------------------------------------------------
+
+
+# [4] Installing Go
+# --------------------------------------------------
+apk add --no-cache --update --virtual .build-deps \
+  go \
+&& export \
+    GOOS="$(go env GOOS)" \
+    GOARCH="$(go env GOARCH)" \
+    GOHOSTOS="$(go env GOHOSTOS)" \
+    GOHOSTARCH="$(go env GOHOSTARCH)" \
+    GOROOT_BOOTSTRAP="$(go env GOROOT)" \
+    GO386='387' \
+&& wget -O /tmp/go.tar.gz https://dl.google.com/go/go${GO_VERSION}.src.tar.gz \
+&& tar xvfz /tmp/go.tar.gz -C /usr/local \
+&& rm -f /tmp/go.tar.gz \
+&& cd /usr/local/go/src \
+&& ./make.bash \
+&& rm -rf /usr/local/go/pkg/bootstrap \
+&& rm -rf /usr/local/go/pkg/obj \
+&& apk del .build-deps
+# --------------------------------------------------
+
+
+# [5] Installing Go-Wrapper
+# --------------------------------------------------
+mv /usr/local/docker/bin/go-wrapper /usr/local/bin/go-wrapper \
+&& chmod 755 /usr/local/bin/go-wrapper
+# --------------------------------------------------
+
+
+# [6] Installing GoDep
+# --------------------------------------------------
+go get -u github.com/golang/dep/cmd/dep \
+&& rm -rf ${GOPATH}/pkg/* \
+&& rm -rf ${GOPATH}/src/*
+# --------------------------------------------------
+
+
+exit 0

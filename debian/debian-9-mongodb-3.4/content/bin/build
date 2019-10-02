@@ -1,0 +1,77 @@
+#!/bin/bash
+
+set -e
+
+echo "--------------------------------------------------"
+echo "Dockerfile Build Tools"
+echo "Email: dimas.restu@student.upi.edu"
+echo "--------------------------------------------------"
+
+echo ""
+echo "[1] Run Some Housekeeping"
+echo "--------------------------------------------------"
+mkdir -p /run \
+  && mkdir -p /run/mongodb \
+  && mkdir -p /var/run \
+  && mkdir -p /var/run/mongodb \
+  && mkdir -p /var/lib \
+  && mkdir -p /var/lib/mongodb \
+  && mkdir -p /var/lib/mongodb/data \
+  && mkdir -p /etc \
+  && mkdir -p /etc/mongodb \
+  && chown -R root:root /run \
+  && chown -R root:root /run/mongodb \
+  && chown -R root:root /var/run \
+  && chown -R root:root /var/run/mongodb \
+  && chown -R root:root /var/lib \
+  && chown -R root:root /var/lib/mongodb \
+  && chown -R root:root /var/lib/mongodb/data \
+  && chown -R root:root /etc \
+  && chown -R root:root /etc/mongodb \
+  && chown -R root:root /usr/local/docker \
+  && chown -R root:root /usr/local/docker/bin \
+  && chmod 775 /run \
+  && chmod 775 /run/mongodb \
+  && chmod 775 /var/run \
+  && chmod 775 /var/run/mongodb \
+  && chmod 775 /var/lib \
+  && chmod 775 /var/lib/mongodb \
+  && chmod 775 /var/lib/mongodb/data \
+  && chmod 775 /etc \
+  && chmod 775 /etc/mongodb \
+  && chmod 775 /usr/local/docker \
+  && chmod 775 /usr/local/docker/bin \
+  && chmod 775 /usr/local/docker/bin/build \
+  && chmod 775 /usr/local/docker/bin/entrypoint \
+  && chmod 775 /usr/local/docker/bin/run-mongod
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[2] Installing MongoDB"
+echo "--------------------------------------------------"
+wget -O - https://www.mongodb.org/static/pgp/server-${MONGODB_VERSION}.asc | apt-key add - \
+  && echo "deb http://repo.mongodb.org/apt/debian jessie/mongodb-org/${MONGODB_VERSION} main" | tee /etc/apt/sources.list.d/mongodb.list \
+  && wget -O /tmp/libssl1.0.0_1.0.1t-1+deb8u11_amd64.deb http://security.debian.org/debian-security/pool/updates/main/o/openssl/libssl1.0.0_1.0.1t-1+deb8u11_amd64.deb \
+  && dpkg -i /tmp/libssl1.0.0_1.0.1t-1+deb8u11_amd64.deb \
+  && rm -f /tmp/libssl1.0.0_1.0.1t-1+deb8u11_amd64.deb \
+  && apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      mongodb-org-server \
+      mongodb-org-shell \
+      mongodb-org-tools \
+      mongodb-org-mongos \
+  && apt-get -y -o Acquire::Check-Valid-Until=false autoremove \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[3] Configuring MongoDB"
+echo "--------------------------------------------------"
+rm -f /etc/mongod.conf \
+  && ln -sf /usr/local/docker/bin/run-mongod /usr/local/bin/run-mongod
+echo "--------------------------------------------------"
+
+
+exit 0

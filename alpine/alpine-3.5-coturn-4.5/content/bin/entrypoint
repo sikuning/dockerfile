@@ -1,0 +1,96 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare var/lib directory due to volume
+if [ ! -d /var/lib ]; then
+  mkdir -p /var/lib \
+  && chown user:root /var/lib \
+  && chmod 775 /var/lib
+fi
+
+
+# Prepare var/lib/coturn directory due to volume
+if [ ! -d /var/lib/coturn ]; then
+  mkdir -p /var/lib/coturn \
+  && chown user:root /var/lib/coturn \
+  && chmod 775 /var/lib/coturn
+fi
+
+
+# Prepare CoTURN configuration
+# ------------------------------------------------
+# CoTURN credentials variable configuration
+COTURN_REALM=${COTURN_REALM:-coturn}
+COTURN_USER=${COTURN_USER:-admin}
+COTURN_PASSWORD=${COTURN_PASSWORD:-admin}
+# ------------------------------------------------
+# CoTURN networks variable configuration
+COTURN_IP_DOCKER="$(ip a | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1')"
+COTURN_IP_HOST="$(curl http://icanhazip.com 2>/dev/null)"
+COTURN_IP_INTERNAL=${COTURN_IP_DOCKER:-}
+COTURN_IP_EXTERNAL=${COTURN_IP_HOST:-}
+COTURN_PORT_EXTERNAL=${COTURN_PORT_EXTERNAL:-3478}
+COTURN_PORT_EXTERNAL_TLS=${COTURN_PORT_EXTERNAL_TLS:-5349}
+# ------------------------------------------------
+# CoTURN certificate variable
+COTURN_PRIVATE_KEY=${COTURN_PRIVATE_KEY:-}
+COTURN_CERTIFICATE=${COTURN_CERTIFICATE:-}
+COTURN_CA_CERTIFICATE=${COTURN_CA_CERTIFICATE:-}
+# ------------------------------------------------
+# CoTURN generate certificate
+if [[ ! -z ${COTURN_PRIVATE_KEY} ]]; then
+  echo "${COTURN_PRIVATE_KEY}" > /etc/ssl/turnserver.key
+fi
+if [[ ! -z ${COTURN_CERTIFICATE} ]]; then
+  echo "${COTURN_CERTIFICATE}" > /etc/ssl/turnserver.crt
+fi
+if [[ ! -z ${COTURN_CA_CERTIFICATE} ]]; then
+  echo "${COTURN_CA_CERTIFICATE}" > /etc/ssl/turnserver-ca.crt
+fi
+# ------------------------------------------------
+# CoTURN generate configuration
+( \
+  echo "realm=${COTURN_REALM}"; \
+  echo "server-name=${COTURN_REALM}"; \
+  echo "listening-port=${COTURN_PORT_EXTERNAL}"; \
+  echo "tls-listening-port=${COTURN_PORT_EXTERNAL_TLS}"; \
+  echo "relay-ip=${COTURN_IP_INTERNAL}"; \
+  echo "listening-ip=${COTURN_IP_INTERNAL}"; \
+  echo "external-ip=${COTURN_IP_EXTERNAL}"; \
+  echo "userdb=/var/lib/coturn/turndb"; \
+  if [[ ! -z ${COTURN_PRIVATE_KEY} ]]; \
+  then
+    echo "pkey=/etc/coturn/turnserver.key"; \
+  fi; \
+  if [[ ! -z ${COTURN_CERTIFICATE} ]]; \
+  then
+    echo "cert=/etc/coturn/turnserver.crt"; \
+  fi; \
+  if [[ ! -z ${COTURN_CA_CERTIFICATE} ]]; \
+  then
+    echo "CA-file=/etc/coturn/turnserver-ca.crt"; \
+  fi; \
+  echo "log-file=stdout"; \
+  echo "lt-cred-mech"; \
+) > /etc/coturn/turnserver.conf
+# ------------------------------------------------
+# CoTURN generate credentials
+turnadmin -a -u ${COTURN_USER} -p ${COTURN_PASSWORD} -r ${COTURN_REALM}
+# ------------------------------------------------
+# Cleaning-up configuration variable
+unset COTURN_REALM COTURN_USER COTURN_PASSWORD
+unset COTURN_IP_INT COTURN_IP_EXT COTURN_IP_DOCKER COTURN_IP_PUBLIC \
+      COTURN_PORT COTURN_PORT_TLS
+unset COTURN_CERTIFICATE COTURN_PRIVATE_KEY
+
+
+# Execute Everything from Entries
+exec "$@"

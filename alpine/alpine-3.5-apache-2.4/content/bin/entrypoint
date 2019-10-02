@@ -1,0 +1,95 @@
+#!/bin/sh -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare etc directory due to volume
+if [ ! -d /var/www/data/etc ]; then
+  mkdir -p /var/www/data/etc \
+  && chown user:root /var/www/data/etc \
+  && chmod 775 /var/www/data/etc \
+  && cp -R /usr/local/docker/etc/* /var/www/data/etc/
+fi
+
+
+# Prepare cgi-bin directory due to volume
+if [ ! -d /var/www/data/cgi-bin ]; then
+  mkdir -p /var/www/data/cgi-bin \
+  && chown user:root /var/www/data/cgi-bin \
+  && chmod 775 /var/www/data/cgi-bin \
+  && cp -R /usr/local/docker/etc/* /var/www/data/cgi-bin/
+fi
+
+
+# Prepare etc/supervisor directory due to volume
+if [ ! -d /var/www/data/etc/supervisor ]; then
+  mkdir -p /var/www/data/etc/supervisor \
+  && chown user:root /var/www/data/etc/supervisor \
+  && chmod 775 /var/www/data/etc/supervisor \
+  && cp -R /usr/local/docker/etc/supervisor/* /var/www/data/etc/supervisor/
+fi
+if [ ! -d /var/www/data/etc/supervisor/conf.d ]; then
+  mkdir -p /var/www/data/etc/supervisor/conf.d \
+  && chown user:root /var/www/data/etc/supervisor/conf.d \
+  && chmod 775 /var/www/data/etc/supervisor/conf.d \
+  && cp -R /usr/local/docker/etc/supervisor/conf.d/* /var/www/data/etc/supervisor/conf.d/
+fi
+
+
+# Prepare etc/apache2 directory due to volume
+if [ ! -d /var/www/data/etc/apache2 ]; then
+  mkdir -p /var/www/data/etc/apache2 \
+  && chown user:root /var/www/data/etc/apache2 \
+  && chmod 775 /var/www/data/etc/apache2 \
+  && cp -R /usr/local/docker/etc/apache2/* /var/www/data/etc/apache2/  
+fi
+if [ ! -f /var/www/data/etc/apache2/httpd.conf ]; then
+  cp /usr/local/docker/etc/apache2/httpd.conf /var/www/data/etc/apache2/httpd.conf
+fi
+
+
+# Prepare logs directory due to volume
+if [ ! -d /var/www/data/logs ]; then
+  mkdir -p /var/www/data/logs \
+  && chown user:root /var/www/data/logs \
+  && chmod 775 /var/www/data/logs
+fi
+
+
+# Prepare logs/supervisor directory due to volume
+if [ ! -d /var/www/data/logs/supervisor ]; then
+  mkdir -p /var/www/data/logs/supervisor \
+  && chown user:root /var/www/data/logs/supervisor \
+  && chmod 775 /var/www/data/logs/supervisor
+fi
+
+
+# Prepare logs/apache2 directory due to volume
+if [ ! -d /var/www/data/logs/apache2 ]; then
+  mkdir -p /var/www/data/logs/apache2 \
+  && chown user:root /var/www/data/logs/apache2 \
+  && chmod 757 /var/www/data/logs/apache2
+fi
+
+
+# Prepare web directory due to volume
+if [ ! -d /var/www/data/html ]; then
+  mkdir -p /var/www/data/html \
+  && chown user:root /var/www/data/html \
+  && chmod 775 /var/www/data/html
+fi
+if [ "$(ls -A /var/www/data/html)" ]; then
+  :
+else
+  cp /usr/local/docker/html/index.html /var/www/data/html/index.html
+fi
+
+
+# Execute Everything from Entries
+exec "$@"

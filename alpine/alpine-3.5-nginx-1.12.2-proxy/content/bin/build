@@ -1,0 +1,64 @@
+#!/bin/sh -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /var/www/data \
+&& mkdir -p /var/www/data/etc \
+&& mkdir -p /var/www/data/html \
+&& mkdir -p /var/www/data/cgi-bin \
+&& mkdir -p /var/www/data/logs \
+&& mkdir -p /var/www/data/logs/supervisor \
+&& mkdir -p /var/www/data/logs/nginx \
+&& chown -R root:root /var/run \
+&& chown -R root:root /var/www/data \
+&& chown -R root:root /var/www/data/etc \
+&& chown -R root:root /var/www/data/html \
+&& chown -R root:root /var/www/data/cgi-bin \
+&& chown -R root:root /var/www/data/logs \
+&& chown -R root:root /var/www/data/logs/supervisor \
+&& chown -R root:root /var/www/data/logs/nginx \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chown -R root:root /usr/local/docker/etc \
+&& chown -R root:root /usr/local/docker/html \
+&& chmod 775 /var/run \
+&& chmod 775 /var/www/data \
+&& chmod 775 /var/www/data/etc \
+&& chmod 775 /var/www/data/html \
+&& chmod 775 /var/www/data/cgi-bin \
+&& chmod 775 /var/www/data/logs \
+&& chmod 775 /var/www/data/logs/supervisor \
+&& chmod 775 /var/www/data/logs/nginx \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint \
+&& chmod 775 /usr/local/docker/etc \
+&& chmod 775 /usr/local/docker/etc/supervisor \
+&& chmod 664 /usr/local/docker/etc/supervisor/supervisord.conf \
+&& chmod 775 /usr/local/docker/etc/supervisor/conf.d \
+&& chmod 664 /usr/local/docker/etc/supervisor/conf.d/01-nginx.conf \
+&& chmod 775 /usr/local/docker/etc/nginx \
+&& chmod 664 /usr/local/docker/etc/nginx/nginx.conf \
+&& chmod 664 /usr/local/docker/etc/nginx/proxy_params \
+&& ln -sf /var/www/data/etc/nginx/proxy_params /etc/nginx/proxy_params \
+&& rm -rf /usr/local/docker/etc/nginx/conf.d/ \
+&& rm -rf /usr/local/docker/html \
+&& unlink /root/public_html
+# --------------------------------------------------
+
+
+# [2] Installing Apache 2 Utility Tools
+# --------------------------------------------------
+apk add --no-cache --update \
+  apache2-utils
+# --------------------------------------------------
+
+
+exit 0

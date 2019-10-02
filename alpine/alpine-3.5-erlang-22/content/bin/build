@@ -1,0 +1,102 @@
+#!/bin/sh -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /usr/src/app \
+&& chown -R root:root /var/run \
+&& chown -R root:root /usr/src/app \
+&& chmod 775 /var/run \
+&& chmod 775 /usr/src/app
+# --------------------------------------------------
+
+
+# [2] Installing Erlang Dependencies
+# --------------------------------------------------
+apk add --no-cache --update \
+  openssl \
+&& apk add --no-cache --update --virtual .build-deps \
+    gcc \
+    g++ \
+    make \
+    autoconf \
+    dpkg \
+    dpkg-dev \
+    openssl-dev \
+    ncurses-dev \
+    unixodbc-dev \
+    lksctp-tools-dev \
+    libc-dev \
+    linux-headers
+# --------------------------------------------------
+
+
+# [3] Installing Erlang OTP
+# --------------------------------------------------
+mkdir -p /usr/local/src/otp-${ERLANG_VERSION} \
+&& cd /usr/local/src/otp-${ERLANG_VERSION} \
+&& wget -O /tmp/otp.tar.gz https://github.com/erlang/otp/archive/OTP-${ERLANG_VERSION}.tar.gz \
+&& tar xvfz /tmp/otp.tar.gz --strip-components 1 \
+&& rm -f /tmp/otp.tar.gz \
+&& export \
+    ERL_TOP="/usr/local/src/otp-${ERLANG_VERSION}" \
+    CFLAGS="$(dpkg-buildflags --get CFLAGS)" \
+&& gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+&& ./otp_build autoconf \
+&& ./configure \
+		--host="$(dpkg-architecture --query DEB_HOST_GNU_TYPE)" \
+		--build="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+		--enable-clock-gettime \
+		--enable-hybrid-heap \
+		--enable-kernel-poll \
+		--enable-shared-zlib \
+		--enable-smp-support \
+		--enable-threads \
+&& make -j$(getconf _NPROCESSORS_ONLN) \
+&& make install \
+&& cd \
+&& rm -rf /usr/local/src/otp-${ERLANG_VERSION} \
+&& find /usr/local -regex '/usr/local/lib/erlang/\(lib/\|erts-\).*/\(man\|doc\|obj\|c_src\|emacs\|info\|examples\)' | xargs rm -vrf \
+&& find /usr/local -name src | xargs -r find | grep -v '\.hrl$' | xargs rm -vrf || true \
+&& find /usr/local -name src | xargs -r find | xargs rm -vrf || true \
+&& scanelf --nobanner -E ET_EXEC -BF '%F' --recursive /usr/local | xargs -r strip --strip-all \
+&& scanelf --nobanner -E ET_DYN -BF '%F' --recursive /usr/local | xargs -r strip --strip-unneeded \
+&& runDepsErlang="$( \
+    scanelf --needed --nobanner --format '%n#p' --recursive /usr/local \
+      | tr ',' '\n' \
+      | sort -u \
+      | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+    )"
+# --------------------------------------------------
+
+
+# [4] Installing Erlang Rebar 3
+# --------------------------------------------------
+mkdir -p /usr/local/src/rebar-${REBAR3_VERSION} \
+&& cd /usr/local/src/rebar-${REBAR3_VERSION} \
+&& wget -O /tmp/rebar.tar.gz https://github.com/erlang/rebar3/archive/${REBAR3_VERSION}.tar.gz \
+&& tar xvfz /tmp/rebar.tar.gz --strip-components 1 \
+&& rm -f /tmp/rebar.tar.gz \
+&& HOME=$PWD ./bootstrap \
+&& install -v ./rebar3 /usr/local/bin \
+&& cd \
+&& rm -rf /usr/local/src/rebar-${REBAR3_VERSION}
+# --------------------------------------------------
+
+
+# [5] Configuring Erlang
+# --------------------------------------------------
+apk add --virtual .erlang-rundeps \
+		$runDepsErlang \
+		lksctp-tools \
+&& apk del .build-deps \
+&& erl -noshell -eval 'io:format("~p~n~n~p~n~n", [crypto:supports(), ssl:versions()]), init:stop().'
+# --------------------------------------------------
+
+
+exit 0

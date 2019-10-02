@@ -1,0 +1,65 @@
+#!/bin/sh -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /data \
+&& mkdir -p /data/filebrowser \
+&& mkdir -p /data/filebrowser/certs \
+&& mkdir -p /data/filebrowser/data \
+&& mkdir -p /etc/filebrowser \
+&& chown -R root:root /var/run \
+&& chown -R root:root /data \
+&& chown -R root:root /data/filebrowser \
+&& chown -R root:root /data/filebrowser/certs \
+&& chown -R root:root /data/filebrowser/data \
+&& chown -R root:root /etc/filebrowser \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chmod 775 /var/run \
+&& chmod 775 /data \
+&& chmod 775 /data/filebrowser \
+&& chmod 775 /data/filebrowser/certs \
+&& chmod 775 /data/filebrowser/data \
+&& chmod 775 /etc/filebrowser \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint \
+&& chmod 775 /usr/local/docker/etc \
+&& chmod 775 /usr/local/docker/etc/filebrowser \
+&& chmod 775 /usr/local/docker/etc/filebrowser/files \
+&& chmod 775 /usr/local/docker/etc/filebrowser/files/img \
+&& chmod 664 /usr/local/docker/etc/filebrowser/files/img/logo.svg \
+&& chmod 775 /usr/local/docker/etc/filebrowser/files/img/icons \
+&& chmod 664 /usr/local/docker/etc/filebrowser/files/img/icons/* \
+&& mv /usr/local/docker/etc/filebrowser/files /etc/filebrowser \
+&& rm -rf /usr/local/docker/etc
+# --------------------------------------------------
+
+
+# [2] Installing Git and Subversion
+# --------------------------------------------------
+apk add --no-cache --update \
+  git \
+  subversion
+# --------------------------------------------------
+
+
+# [3] Installing File Browser
+# --------------------------------------------------
+cd /tmp \
+&& wget -O filebrowser.tar.gz https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz \
+&& tar xzvf filebrowser.tar.gz \
+&& cp /tmp/filebrowser /usr/bin/filebrowser \
+&& rm -rf /tmp/* \
+&& chmod 755 /usr/bin/filebrowser
+# --------------------------------------------------
+
+
+exit 0

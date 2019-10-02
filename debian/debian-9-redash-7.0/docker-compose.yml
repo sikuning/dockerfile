@@ -1,0 +1,111 @@
+version: '2'
+
+volumes:
+  redis_data: {}
+  pgsql_data: {}
+
+networks:
+  redashnet:
+    driver: bridge
+
+services:
+  postgresql:
+    image: 'dimaskiddo/debian:postgresql-9.6'
+    networks:
+      - redashnet
+    ports:
+      - 127.0.0.1:5432:5432
+    environment:
+      - POSTGRESQL_USER=redash
+      - POSTGRESQL_PASSWORD=redash
+      - POSTGRESQL_DATABASE=redash
+    volumes:
+      - pgsql_data:/var/lib/pgsql/data
+    restart: always
+
+  redis:
+    image: 'dimaskiddo/alpine:redis-3.2'
+    networks:
+      - redashnet
+    ports:
+      - 127.0.0.1:6379:6379
+    environment:
+      - REDIS_PASSWORD=redash
+    volumes:
+      - redis_data:/var/lib/redis/data
+    restart: always
+
+  redash-web:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: 'dimaskiddo/debian:redash-7.0'
+    networks:
+      - redashnet
+    ports:
+      - 5000:5000
+    environment:
+      - PYTHONUNBUFFERED=0
+      - REDASH_LOG_LEVEL=INFO
+      - REDASH_REDIS_URL=redis://:redash@redis:6379/0
+      - REDASH_DATABASE_URL=postgresql://redash:redash@postgresql/redash
+      - REDASH_COOKIE_SECRET=HR4VAye1BJUKFVf21bfmCUShBMKcLh2N
+      - REDASH_WEB_WORKERS=4
+    depends_on:
+      - postgresql
+      - redis
+    restart: always
+
+  redash-scheduler:
+    image: 'dimaskiddo/debian:redash-7.0'
+    command: scheduler
+    networks:
+      - redashnet
+    environment:
+      - PYTHONUNBUFFERED=0
+      - REDASH_LOG_LEVEL=INFO
+      - REDASH_REDIS_URL=redis://:redash@redis:6379/0
+      - REDASH_DATABASE_URL=postgresql://redash:redash@postgresql/redash
+      - REDASH_COOKIE_SECRET=HR4VAye1BJUKFVf21bfmCUShBMKcLh2N
+      - QUEUES=celery
+      - WORKERS_COUNT=1
+    depends_on:
+      - postgresql
+      - redis
+    restart: always
+
+  redash-adhoc:
+    image: 'dimaskiddo/debian:redash-7.0'
+    command: worker
+    networks:
+      - redashnet
+    environment:
+      - PYTHONUNBUFFERED=0
+      - REDASH_LOG_LEVEL=INFO
+      - REDASH_REDIS_URL=redis://:redash@redis:6379/0
+      - REDASH_DATABASE_URL=postgresql://redash:redash@postgresql/redash
+      - REDASH_COOKIE_SECRET=HR4VAye1BJUKFVf21bfmCUShBMKcLh2N
+      - QUEUES=queries
+      - WORKERS_COUNT=2
+    depends_on:
+      - postgresql
+      - redis
+    restart: always
+
+  redash-worker:
+    image: 'dimaskiddo/debian:redash-7.0'
+    command: worker
+    networks:
+      - redashnet
+    environment:
+      - PYTHONUNBUFFERED=0
+      - REDASH_LOG_LEVEL=INFO
+      - REDASH_REDIS_URL=redis://:redash@redis:6379/0
+      - REDASH_DATABASE_URL=postgresql://redash:redash@postgresql/redash
+      - REDASH_COOKIE_SECRET=HR4VAye1BJUKFVf21bfmCUShBMKcLh2N
+      - QUEUES=scheduled_queries,schemas
+      - WORKERS_COUNT=1
+    depends_on:
+      - postgresql
+      - redis
+    restart: always

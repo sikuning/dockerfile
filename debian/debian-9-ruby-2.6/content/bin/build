@@ -1,0 +1,112 @@
+#!/bin/bash
+
+set -e
+
+echo "--------------------------------------------------"
+echo "Dockerfile Build Tools"
+echo "Email: dimas.restu@student.upi.edu"
+echo "--------------------------------------------------"
+
+echo ""
+echo "[1] Run Some Housekeeping"
+echo "--------------------------------------------------"
+mkdir -p /usr/src/app \
+  && chown -R root:root /var/run \
+  && chown -R root:root /usr/src/app \
+  && chmod 775 /var/run \
+  && chmod 775 /usr/src/app
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[2] Installing Ruby Dependencies"
+echo "--------------------------------------------------"
+apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      bzip2 \
+      procps \
+      libffi-dev \
+      libgmp-dev \
+      libssl-dev \
+      libyaml-dev \
+      zlib1g-dev \
+  && apt-get -y -o Acquire::Check-Valid-Until=false autoremove \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean \
+  && savedAptMark="$(apt-mark showmanual)" \
+  && apt-get -y -o Acquire::Check-Valid-Until=false update \
+  && apt-get -y -o Acquire::Check-Valid-Until=false --no-install-recommends install \
+      gcc \
+      make \
+      autoconf \
+      ruby \
+      bison \
+      dpkg-dev \
+      libbz2-dev \
+      libgdbm-dev \
+      libglib2.0-dev \
+      libncurses-dev \
+      libreadline-dev \
+      libxml2-dev \
+      libxslt-dev \
+      xz-utils \
+  && apt-get -y -o Acquire::Check-Valid-Until=false clean \
+	&& mkdir -p /usr/local/etc \
+	&& { \
+	    echo 'install: --no-document'; \
+		  echo 'update: --no-document'; \
+	   } >> /usr/local/etc/gemrc  
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[3] Installing Ruby"
+echo "--------------------------------------------------"
+mkdir -p /usr/src/ruby \
+  && cd /usr/src/ruby \
+  && wget -O /tmp/ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-${RUBY_VERSION}.tar.xz" \
+  && tar xJvf /tmp/ruby.tar.xz -C /usr/src/ruby --strip-components=1 \
+  && rm -f /tmp/ruby.tar.xz \
+  && { \
+		 echo '#define ENABLE_PATH_CHECK 0'; \
+		 echo; \
+		 cat file.c; \
+	 } > file.c.new \
+  && mv file.c.new file.c \
+  && autoconf \
+  && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+  && ./configure \
+      --build="$gnuArch" \
+		  --disable-install-doc \
+		  --enable-shared \
+  && make -j "$(nproc)" \
+  && make install \
+  && cd \
+  && rm -rf /usr/src/ruby \
+  && gem install bundler -v $BUNDLE_VERSION
+echo "--------------------------------------------------"
+
+
+echo ""
+echo "[4] Configuring Ruby Dependencies"
+echo "--------------------------------------------------"
+apt-mark auto '.*' > /dev/null \
+  && apt-mark manual $savedAptMark > /dev/null \
+  && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
+      | awk '/=>/ { print $(NF-1) }' \
+      | sort -u \
+      | xargs -r dpkg-query --search \
+      | cut -d: -f1 \
+      | sort -u \
+      | xargs -r apt-mark manual \
+  && apt-get -y -o Acquire::Check-Valid-Until=false -o APT::AutoRemove::RecommendsImportant=false -o APT::AutoRemove::SuggestsImportant=false --auto-remove purge \
+  && ! dpkg -l | grep -i ruby \
+	&& [ "$(command -v ruby)" = '/usr/local/bin/ruby' ] \
+  && mkdir -p $GEM_HOME \
+  && chmod 777 $GEM_HOME \
+  && ruby --version \
+  && gem --version \
+  && bundle --version
+echo "--------------------------------------------------"
+
+
+exit 0

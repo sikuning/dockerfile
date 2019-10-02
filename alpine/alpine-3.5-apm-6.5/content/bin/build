@@ -1,0 +1,53 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /opt \
+&& chown -R root:root /opt \
+&& chown -R root:root /var/run \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chmod 775 /opt \
+&& chmod 775 /var/run \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint
+# --------------------------------------------------
+
+
+# [2] Installing SU-EXEC and GNUPG
+# --------------------------------------------------
+cp /etc/apk/repositories /etc/apk/repositories.original \
+&& echo 'http://dl-cdn.alpinelinux.org/alpine/v3.6/main' >> /etc/apk/repositories \
+&& echo 'http://dl-cdn.alpinelinux.org/alpine/v3.6/community' >> /etc/apk/repositories \
+&& apk update \
+&& apk add \
+    su-exec \
+&& rm -rf /var/cache/apk/* \
+&& rm -f /etc/apk/repositories \
+&& mv /etc/apk/repositories.original /etc/apk/repositories
+# --------------------------------------------------
+
+
+# [3] Installing APM Server
+# --------------------------------------------------
+mkdir -p $APM_HOME \
+&& chown -R root:root $APM_HOME \
+&& chmod -R 664 $APM_HOME \
+&& cd $APM_HOME \
+&& wget -O apm-server.tar.gz https://artifacts.elastic.co/downloads/apm-server/apm-server-${APM_VERSION}-linux-x86_64.tar.gz \
+&& tar xvfz apm-server.tar.gz --strip-components=1 \
+&& rm -f apm-server.tar.gz* \
+&& mv $APM_HOME/apm-server.yml $APM_HOME/apm-server.yml.example \
+&& chmod -R 775 $APM_HOME
+# --------------------------------------------------
+
+
+exit 0

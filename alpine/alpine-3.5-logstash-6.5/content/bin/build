@@ -1,0 +1,59 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Run Some Housekeeping
+# --------------------------------------------------
+mkdir -p /opt \
+&& chown -R root:root /opt \
+&& chown -R root:root /var/run \
+&& chown -R root:root /usr/local/docker \
+&& chown -R root:root /usr/local/docker/bin \
+&& chmod 775 /opt \
+&& chmod 775 /var/run \
+&& chmod 775 /usr/local/docker \
+&& chmod 775 /usr/local/docker/bin \
+&& chmod 775 /usr/local/docker/bin/build \
+&& chmod 775 /usr/local/docker/bin/entrypoint
+# --------------------------------------------------
+
+
+# [2] Installing SU-EXEC and GNUPG
+# --------------------------------------------------
+apk update \
+&& apk add \
+    su-exec \
+    gnupg \
+&& rm -rf /var/cache/apk/*
+# --------------------------------------------------
+
+
+# [3] Installing ElasticSearch
+# --------------------------------------------------
+mkdir -p $LS_HOME \
+&& chown -R root:root $LS_HOME \
+&& chmod -R 664 $LS_HOME \
+&& cd $LS_HOME \
+&& wget -O logstash.tar.gz.asc https://artifacts.elastic.co/downloads/logstash/logstash-${LS_VERSION}.tar.gz.asc \
+&& wget -O logstash.tar.gz https://artifacts.elastic.co/downloads/logstash/logstash-${LS_VERSION}.tar.gz \
+&& export GNUPGHOME="$(mktemp -d)" \
+&& gpg --keyserver keyserver.ubuntu.com --recv-keys "$LS_GPG_KEY" \
+&& gpg --batch --verify logstash.tar.gz.asc logstash.tar.gz \
+&& tar xvfz logstash.tar.gz --strip-components=1 \
+&& rm -f logstash.tar.gz* \
+&& rm -f $LS_HOME/config/logstash-sample.conf \
+&& rm -f $LS_HOME/config/pipelines.yml \
+&& mkdir -p data/queue \
+&& mkdir -p data/dead_letter_queue \
+&& mkdir -p pipeline \
+&& ln -sf $LS_HOME/pipeline/pipelines.yml $LS_HOME/config/pipelines.yml \
+&& chown -R root:root $LS_HOME \
+&& chmod -R 775 $LS_HOME
+# --------------------------------------------------
+
+
+exit 0

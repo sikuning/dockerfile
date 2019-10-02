@@ -1,0 +1,32 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Installing NumPy Dependencies
+# --------------------------------------------------
+apk add --no-cache --update \
+  openblas \
+  openblas-dev \
+&& apk add --no-cache --update --virtual .build-deps \
+    build-base
+# --------------------------------------------------
+
+
+# [2] Compiling and Installing NumPy
+# --------------------------------------------------
+pip install --no-cache-dir --upgrade pip \
+&& pip install --no-cache-dir numpy==$NUMPY_VERSION
+# --------------------------------------------------
+
+
+# [3] Configuring NumPy Dependencies
+# --------------------------------------------------
+apk del .build-deps
+# --------------------------------------------------
+
+
+exit 0

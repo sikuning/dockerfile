@@ -1,0 +1,30 @@
+#!/bin/bash -xe
+
+# --------------------------------------------------
+# Dockerfile Build Tools
+# Email: dimas.restu@student.upi.edu
+# --------------------------------------------------
+
+
+# [1] Installing SKLearn Dependencies
+# --------------------------------------------------
+apk add --no-cache --update --virtual .build-deps \
+  build-base
+# --------------------------------------------------
+
+
+# [2] Compiling and Installing SKLearn
+# --------------------------------------------------
+pip install --no-cache-dir --upgrade pip \
+&& pip install --no-cache-dir Cython==$CYTHON_VERSION \
+&& pip install --no-cache-dir sklearn==$SKLEARN_VERSION
+# --------------------------------------------------
+
+
+# [3] Removing SKLearn Dependencies
+# --------------------------------------------------
+apk del .build-deps
+# --------------------------------------------------
+
+
+exit 0

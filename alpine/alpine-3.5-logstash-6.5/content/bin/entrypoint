@@ -1,0 +1,109 @@
+#!/bin/bash -e
+
+
+# Add Custom UserID as "User" User
+if [ "$(id -u)" != "0" ]; then
+  sed "s/^user:\(.*\):[0-9]\+:\([0-9]\+\):.*:\(.*:.*\)/user:\1:$(id -u):\2:User:\3/g" < /etc/passwd > /tmp/passwd \
+  && cat /tmp/passwd > /etc/passwd \
+  && rm -f /tmp/passwd
+fi
+
+
+# Prepare data directory due to volume
+if [ ! -d ${LS_HOME}/data ]; then
+  mkdir -p ${LS_HOME}/data \
+  && chown user:root ${LS_HOME}/data \
+  && chmod 775 ${LS_HOME}/data
+fi
+
+
+# Prepare data/queue directory due to volume
+if [ ! -d ${LS_HOME}/data/queue ]; then
+  mkdir -p ${LS_HOME}/data/queue \
+  && chown user:root ${LS_HOME}/data/queue \
+  && chmod 775 ${LS_HOME}/data/queue
+fi
+
+
+# Prepare data/dead_letter_queue directory due to volume
+if [ ! -d ${LS_HOME}/data/dead_letter_queue ]; then
+  mkdir -p ${LS_HOME}/data/dead_letter_queue \
+  && chown user:root ${LS_HOME}/data/dead_letter_queue \
+  && chmod 775 ${LS_HOME}/data/dead_letter_queue
+fi
+
+
+# Export LogStash Command
+if [ "${1:0:1}" = '-' ]; then
+	set -- logstash "$@"
+fi
+
+
+# Configure LogStash Variable
+LS_HTTP_PORT=${LS_HTTP_PORT:-"9600"}
+LS_INGRESS_PORT=${LS_INGRESS_PORT:-"5000"}
+ES_URL=${ES_URL:-"http://elasticsearch:9200"}
+ES_USERNAME=${ES_USERNAME:-}
+ES_PASSWORD=${ES_PASSWORD:-}
+
+
+# Configure LogStash Default Pipeline File
+if [ ! -f ${LS_HOME}/pipeline/logstash.conf ]; then
+  { \
+    echo "input {"; \
+    echo "	tcp {"; \
+    echo "		port => ${LS_INGRESS_PORT}"; \
+    echo "	}"
+    echo "}"; \
+    echo ""; \
+    echo "output {"; \
+    echo "	elasticsearch {"; \
+    echo "		hosts => [\"${ES_URL}\"]"; \
+    if [[ ! -z ${ES_USERNAME} ]]; then \
+    echo "		user => ${ES_USERNAME}"; \
+    fi; \
+    if [[ ! -z ${ES_PASSWORD} ]]; then \
+    echo "		password => ${ES_PASSWORD}"; \
+    fi; \
+    echo "	}"; \
+    echo "}"; \
+  } > ${LS_HOME}/pipeline/logstash.conf
+fi
+
+
+# Configure LogStash Pipeline Configuration File
+if [ ! -f ${LS_HOME}/pipeline/pipelines.yml ]; then
+  {
+    echo "- pipeline.id: job-1"; \
+    echo "  path.config: ${LS_HOME}/pipeline/logstash.conf"; \
+  } > ${LS_HOME}/pipeline/pipelines.yml
+fi
+
+
+# Configure LogStash Arguments
+declare -a LS_ARGS
+LS_ARGS+=("--http.host=0.0.0.0" "--http.port=${LS_HTTP_PORT}")
+
+if [[ -n $LS_ARGS_OPTS ]]; then
+  for LS_ARGS_OPTS_DATA in `echo $LS_ARGS_OPTS`
+  do
+    LS_ARGS+=("${LS_ARGS_OPTS_DATA}")
+  done
+  unset LS_ARGS_OPTS
+fi
+
+
+# Execute Everything from Entries
+if [ "$(id -u)" != "0" ]; then
+  if [[ $1 == "logstash" ]]; then
+    exec "$@" "${LS_ARGS[@]}"
+  else
+    exec "$@"
+  fi
+else
+  if [[ $1 == "logstash" ]]; then
+    su-exec user "$@" "${LS_ARGS[@]}"
+  else
+    su-exec user "$@"
+  fi
+fi

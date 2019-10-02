@@ -1,0 +1,116 @@
+#!/bin/bash -e
+
+
+# Configure Kafka Broker ID
+if [[ -f /data/kafka/broker_id ]]; then
+  KAFKA_CONF_BROKER_ID=`cat /data/kafka/broker_id`
+else
+  KAFKA_CONF_BROKER_ID=${KAFKA_CONF_BROKER_ID:-`cat /dev/urandom | LC_CTYPE=C tr -dc '0-9' | fold -w 256 | head -n 1 |sed -e 's/^0*//' | head -c 3`}
+  
+  mkdir -p /data/kafka
+  echo ${KAFKA_CONF_BROKER_ID} > /data/kafka/broker_id
+fi
+export KAFKA_CONF_BROKER_ID=${KAFKA_CONF_BROKER_ID}
+
+
+# Configure Kafka Heap Options
+KAFKA_CONF_HEAP_OPTS=${KAFKA_CONF_HEAP_OPTS:-"-Xms1G -Xmx2G"}
+if [[ -n "$KAFKA_CONF_HEAP_OPTS" ]]; then
+  sed -r -i "s/(export KAFKA_CONF_HEAP_OPTS)=\"(.*)\"/\1=\"$KAFKA_CONF_HEAP_OPTS\"/g" /opt/kafka/bin/kafka-server-start.sh
+fi
+
+
+# Configure Kafka Variable
+KAFKA_DOMAIN=`hostname -d`
+KAFKA_HOST_NAME=`hostname -s`
+KAFKA_CONF_PORT=${KAFKA_CONF_PORT:-9092}
+KAFKA_CONF_LOG_DIRS="/data/kafka/logs"
+KAFKA_CONF_LOG_RETENTION_HOURS=${KAFKA_CONF_LOG_RETENTION_HOURS:-"168"}
+if [[ -n $KAFKA_DOMAIN ]]; then
+  KAFKA_CONF_ADVERTISED_HOST_NAME=${KAFKA_CONF_ADVERTISED_HOST_NAME:-"${KAFKA_HOST_NAME}.${KAFKA_DOMAIN}"}
+else
+  KAFKA_CONF_ADVERTISED_HOST_NAME=${KAFKA_CONF_ADVERTISED_HOST_NAME:-"${KAFKA_HOST_NAME}"}
+fi
+KAFKA_CONF_ADVERTISED_PORT=${KAFKA_CONF_ADVERTISED_PORT:-$KAFKA_CONF_PORT}
+KAFKA_CONF_ADVERTISED_LISTENERS=${KAFKA_CONF_ADVERTISED_LISTENERS:-"PLAINTEXT://${KAFKA_CONF_ADVERTISED_HOST_NAME}:${KAFKA_CONF_ADVERTISED_PORT}"}
+KAFKA_CONF_LISTENERS=${KAFKA_CONF_LISTENERS:-"PLAINTEXT://0.0.0.0:${KAFKA_CONF_ADVERTISED_PORT}"}
+KAFKA_CONF_NUM_PARTITIONS=${KAFKA_CONF_NUM_PARTITIONS:-"1"}
+
+mkdir -p ${KAFKA_CONF_LOG_DIRS}
+
+export KAFKA_CONF_PORT=${KAFKA_CONF_PORT}
+export KAFKA_CONF_LOG_DIRS=${KAFKA_CONF_LOG_DIRS}
+export KAFKA_CONF_LOG_RETENTION_HOURS=${KAFKA_CONF_LOG_RETENTION_HOURS}
+export KAFKA_CONF_ADVERTISED_HOST_NAME=${KAFKA_CONF_ADVERTISED_HOST_NAME}
+export KAFKA_CONF_ADVERTISED_PORT=${KAFKA_CONF_ADVERTISED_PORT}
+export KAFKA_CONF_ADVERTISED_LISTENERS=${KAFKA_CONF_ADVERTISED_LISTENERS}
+export KAFKA_CONF_LISTENERS=${KAFKA_CONF_LISTENERS}
+export KAFKA_CONF_NUM_PARTITIONS=${KAFKA_CONF_NUM_PARTITIONS}
+
+if [[ -z "$KAFKA_CONF_ZOOKEEPER_CONNECT" ]]; then
+  echo "Configuring Zookeeper Server"
+  /usr/local/docker/bin/configure-zookeeper
+
+  echo "Running Zookeeper Server"
+  zookeeper-server-start.sh /opt/kafka/config/zookeeper.properties &
+  
+  echo "Connecting to Zookeeper Server"
+  while ! nc -z 127.0.0.1 2181
+  do
+    echo "Trying to Connect to Zookeeper Server at 127.0.0.1:2181..."
+    sleep 1
+  done
+  echo "Zookeeper Server Connected Successfully"
+
+  export KAFKA_CONF_ZOOKEEPER_CONNECT="127.0.0.1:2181"
+else
+  KAFKA_CONF_ZOOKEEPER_HOST=`echo ${KAFKA_CONF_ZOOKEEPER_CONNECT} | awk -F':' '{print $1}'`
+  KAFKA_CONF_ZOOKEEPER_PORT=`echo ${KAFKA_CONF_ZOOKEEPER_CONNECT} | awk -F':' '{print $2}'`
+
+  echo "Connecting to Zookeeper Server"
+  while ! nc -z ${KAFKA_CONF_ZOOKEEPER_HOST} ${KAFKA_CONF_ZOOKEEPER_PORT}
+  do
+    echo "Trying to Connect to Zookeeper Server at ${KAFKA_CONF_ZOOKEEPER_HOST}:${KAFKA_CONF_ZOOKEEPER_PORT}..."
+    sleep 1
+  done
+  echo "Zookeeper Server Connected Successfully"
+fi
+
+
+# Parse Kafka Environment Variable to Kafka Configuration
+echo "Parsing Kafka Environment Variable to Kafka Configuration:"
+for TEMP_ENV_KAFKA in `env`
+do
+  if [[ $TEMP_ENV_KAFKA =~ ^KAFKA_CONF_ && ! $TEMP_ENV_KAFKA =~ ^KAFKA_HOME ]]; then
+    KAFKA_ENV_NAME=`echo "${TEMP_ENV_KAFKA}" | sed -r "s/KAFKA_CONF_(.*)=.*/\1/g" | tr '[:upper:]' '[:lower:]' | tr _ .`
+    KAFKA_ENV_VAR=`echo "${TEMP_ENV_KAFKA}" | sed -r "s/(.*)=.*/\1/g"`
+
+    echo "- ${KAFKA_ENV_NAME}=${!KAFKA_ENV_VAR}"
+    if egrep -q "(^|^#)${KAFKA_ENV_NAME}=" /opt/kafka/config/server.properties; then
+      # Note that no config values may contain an '@' char    
+      sed -r -i "s@(^|^#)(${KAFKA_ENV_NAME})=(.*)@\2=${!KAFKA_ENV_VAR}@g" /opt/kafka/config/server.properties
+    else
+      echo "$KAFKA_ENV_NAME=${!KAFKA_ENV_VAR}" >> /opt/kafka/config/server.properties
+    fi
+  fi
+done
+
+
+# Configure Topics
+if [[ -n "$KAFKA_TOPICS" ]]; then
+  /usr/local/docker/bin/configure-kafka-topics &
+fi
+
+
+# Cleaning-up Variables
+unset KAFKA_CONF_BROKER_ID
+unset KAFKA_CONF_HEAP_OPTS
+unset KAFKA_CONF_PORT
+unset KAFKA_CONF_LOG_DIRS KAFKA_CONF_LOG_RETENTION_HOURS
+unset KAFKA_CONF_ADVERTISED_HOST_NAME KAFKA_CONF_ADVERTISED_PORT KAFKA_CONF_ADVERTISED_LISTENERS
+unset KAFKA_CONF_LISTENERS
+unset KAFKA_CONF_NUM_PARTITIONS
+unset KAFKA_CONF_ZOOKEEPER_CONNECT KAFKA_CONF_ZOOKEEPER_HOST KAFKA_CONF_ZOOKEEPER_PORT
+
+
+exit 0
