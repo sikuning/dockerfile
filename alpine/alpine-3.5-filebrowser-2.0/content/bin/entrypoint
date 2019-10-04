@@ -39,6 +39,10 @@ if [ ! -d /data/filebrowser/data ]; then
 fi
 
 
+# Prepare File NBrowse configuration
+IS_STRING='^[a-zA-Z0-9_]+$'
+IS_PASSWORD='^[a-zA-Z0-9_~!@#$%^&*()-=<>,.?;:|]+$'
+# ------------------------------------------------
 # File Browser variable configuration
 FB_SOCKET=""
 FB_ADDRESS="0.0.0.0"
@@ -51,7 +55,7 @@ FB_SIGNUP=${FB_SIGNUP:-false}
 FB_CREATE_USER_DIR=${FB_CREATE_USER_DIR:-true}
 FB_LOCALE=${FB_LOCALE:-en}
 FB_VIEW_MODE=${FB_VIEW_MODE:-list}
-FB_SORTING_ASC=${FB_SORTING_ASC:-true}
+FB_SORTING_ASC=${FB_SORTING_ASC:-false}
 FB_SORTING_BY=${FB_SORTING_BY:-name}
 if [[ ! -z $FB_BRANDING_NAME ]]; then
   FB_BRANDING_NAME="PlayCourt Drive $FB_BRANDING_NAME"
@@ -60,15 +64,36 @@ else
 fi
 FB_BRANDING_FILES=/etc/filebrowser/files
 FB_BRANDING_DISABLE_EXTERNAL=true
-FB_RECAPTCHA=${FB_RECAPTCHA:-false}
-FB_RECAPTCHA_HOST=${FB_RECAPTCHA_HOST:-"https://www.google.com"}
-FB_RECAPTCHA_KEY=${FB_RECAPTCHA_KEY:-""}
-FB_RECAPTCHA_SECRET=${FB_RECAPTCHA_SECRET:-""}
 FB_SETTINGS_ENV=${FB_SETTINGS_ENV:-false}
 # ------------------------------------------------
 # File Browser credentials variable configuration
 FB_USERNAME=${FB_USERNAME:-admin}
 FB_PASSWORD=${FB_PASSWORD:-admin}
+# ------------------------------------------------
+# Validate File Browser credentials variable configuration
+if [[ ! -z $FB_USERNAME ]]; then
+  if ! [[ $FB_USERNAME =~ $IS_STRING ]]; then
+    echo "Failed to configure FB_USERNAME variable. Fallback to default FB_USERNAME value as admin"
+    FB_USERNAME="admin"
+  else
+    if [[ ${#FB_USERNAME} -gt 32 ]]; then
+      echo "Failed to configure FB_USERNAME variable. Fallback to default FB_USERNAME value as admin"
+      FB_USERNAME="admin"
+    fi
+  fi
+else
+  echo "Failed to configure FB_USERNAME variable. Fallback to default FB_USERNAME value as admin"
+  FB_USERNAME="admin"
+fi
+if [[ ! -z $FB_PASSWORD ]]; then
+  if ! [[ $FB_PASSWORD =~ $IS_PASSWORD ]]; then
+    echo "Failed to configure FB_PASSWORD variable. Fallback to default FB_PASSWORD value as password"
+    FB_PASSWORD="password"
+  fi
+else
+  echo "Failed to configure FB_PASSWORD variable. Fallback to default FB_PASSWORD value as password"
+  FB_PASSWORD="password"
+fi
 # ------------------------------------------------
 # Write File Browser variable to configuration file
 if [[ -z $FB_DEFAULTS_CONF_FILE && ! -f $FB_DEFAULTS_CONF_FILE ]]; then
@@ -163,20 +188,10 @@ else
   > /dev/null
 fi
 
-if [[ ! -z $FB_CERT && ! -z $FB_KEY ]]; then
-  filebrowser config set \
-    --cert=${FB_CERT} \
-    --key=${FB_KEY}  \
-  > /dev/null
-fi
-
-if [[ $FB_RECAPTCHA == "true" ]]; then
-  filebrowser config set \
-    --recaptcha.host="${FB_RECAPTCHA_HOST}" \
-    --recaptcha.key="${FB_RECAPTCHA_KEY}" \
-    --recaptcha.secret="${FB_RECAPTCHA_SECRET}" \
-  > /dev/null
-fi
+filebrowser config set \
+  --cert=${FB_CERT} \
+  --key=${FB_KEY}  \
+> /dev/null
 # ------------------------------------------------
 # Cleaning-up configuration variable
 unset FB_SOCKET FB_ADDRESS FB_PORT
@@ -184,7 +199,6 @@ unset FB_LOG FB_ROOT FB_DATABASE
 unset FB_BASEURL FB_SIGNUP FB_CREATE_USER_DIR
 unset FB_LOCALE FB_VIEW_MODE FB_SORTING_ASC FB_SORTING_BY
 unset FB_BRANDING_NAME FB_BRANDING_FILES FB_BRANDING_DISABLE_EXTERNAL
-unset FB_RECAPTCHA FB_RECAPTCHA_HOST FB_RECAPTCHA_KEY FB_RECAPTCHA_SECRET
 unset FB_SETTINGS_ENV
 
 

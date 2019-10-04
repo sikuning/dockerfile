@@ -184,7 +184,7 @@ function upgrade_dbs() {
   local MONGODB_COMMAND=${MONGODB_COMMAND:-}
 
   # Upgrade Database
-  MONGODB_COMMAND="db.adminCommand( { setFeatureCompatibilityVersion: \"3.4\" } )"
+  MONGODB_COMMAND="db.adminCommand( { setFeatureCompatibilityVersion: \"${MONGODB_VERSION}\" } )"
   if ! mongo admin --eval "${MONGODB_COMMAND}"; then
     echo "Failed to upgrade user with value admin"
     exit 1

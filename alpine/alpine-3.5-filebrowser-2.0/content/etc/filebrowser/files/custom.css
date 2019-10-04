@@ -3,20 +3,12 @@
   --dark-blue: #3F51B5;
 }
 
-header {
-  background-color: #3F51B5;
-}
-
-header #dropdown .material-icons {
-  color: #FFF;
-}
-
 #login {
   background-color: #FAFAFA;
 }
 
 #login form {
-  max-width: 20em;
+  max-width: 304px;
 }
 
 #login form .button {

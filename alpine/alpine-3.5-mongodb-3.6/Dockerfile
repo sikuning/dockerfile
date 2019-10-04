@@ -1,6 +1,9 @@
 FROM dimaskiddo/alpine:base
 MAINTAINER Dimas Restu Hidayanto <dimas.restu@student.upi.edu>
 
+# Setting-up Environment
+ENV MONGODB_VERSION 3.6
+
 # Copying Prequisites Configuration
 COPY ./content/ /usr/local/docker/
 
